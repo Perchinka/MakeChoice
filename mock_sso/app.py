@@ -90,7 +90,7 @@ async def token(
         "aud": client_id,
         "exp": now + 3600,
         "iat": now,
-        "nonce": nonce,  # ← embed correct nonce
+        "nonce": nonce,
         "email": "dev@example.com",
         "commonname": "Dev User",
         "group": ["Innopoints_Admins"],
