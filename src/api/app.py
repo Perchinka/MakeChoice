@@ -4,7 +4,7 @@ from src.logging import setup_logging
 from src.infrastructure.db.session import engine
 from src.infrastructure.db.models import Base
 from src.api.routers import admin_router, auth_router
-from src.api.routers.user import router as user_router
+from src.api.routers.user import router as users_router
 from starlette.middleware.sessions import SessionMiddleware
 
 
@@ -23,7 +23,7 @@ def create_app() -> FastAPI:
 
     app.include_router(admin_router)
     app.include_router(auth_router, prefix="/auth", tags=["auth"])
-    app.include_router(user_router, prefix="/user", tags=["user"])
+    app.include_router(users_router, prefix="/users", tags=["users"])
 
     return app
 
