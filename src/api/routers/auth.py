@@ -1,8 +1,12 @@
 import logging
+import jwt
+
 from fastapi import APIRouter, Depends, Request, HTTPException, status, Response
 from authlib.integrations.starlette_client import OAuthError
 
 from src.api.dependencies import get_uow
+from src.api.models import UserResponse
+
 from src.infrastructure.sso.innopolis_oidc import oauth
 from src.services.user_service import UserService
 from src.config import settings
@@ -16,7 +20,7 @@ async def login(request: Request):
     Redirect the user to the Innopolis SSO authorization endpoint.
     """
     redirect_uri = request.url_for("auth_callback")
-    return await oauth.innopolis_sso.authorize_redirect(request, redirect_uri)
+    return await oauth.innopolis_sso.authorize_redirect(request, redirect_uri)  # type: ignore
 
 
 @router.get("/callback")
@@ -28,16 +32,16 @@ async def auth_callback(
     create/update local user, then issue a JWT in a cookie.
     """
     try:
-        token = await oauth.innopolis_sso.authorize_access_token(request)
+        token = await oauth.innopolis_sso.authorize_access_token(request)  # type: ignore
         logging.debug("SSO token response keys: %s", list(token.keys()))
 
         userinfo = token.get("userinfo")
 
         if not userinfo and token.get("id_token"):
-            userinfo = await oauth.innopolis_sso.parse_id_token(request, token)
+            userinfo = await oauth.innopolis_sso.parse_id_token(request, token)  # type: ignore
 
         if not userinfo:
-            userinfo = await oauth.innopolis_sso.userinfo(request, token)
+            userinfo = await oauth.innopolis_sso.userinfo(request, token)  # type: ignore
 
     except OAuthError as err:
         logging.error("SSO login failed: %s", err)
@@ -74,3 +78,30 @@ async def auth_callback(
         samesite="lax",
     )
     return resp
+
+
+def get_current_user(request: Request) -> UserResponse:
+    token = request.cookies.get("access_token")
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated"
+        )
+
+    try:
+        payload = jwt.decode(
+            token,
+            settings.JWT_SECRET_KEY,
+            algorithms=[settings.JWT_ALGORITHM],
+        )
+    except jwt.PyJWTError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication token",
+        )
+
+    return UserResponse(
+        sub=payload["sub"],
+        email=payload.get("email", ""),
+        name=payload.get("name", ""),
+        is_admin=payload.get("is_admin", False),
+    )
