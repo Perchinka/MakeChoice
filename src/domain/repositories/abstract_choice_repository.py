@@ -4,7 +4,7 @@ from uuid import UUID
 from src.domain.entities.choice import Choice
 
 
-class ChoiceRepository(ABC):
+class AbstractChoiceRepository(ABC):
     """Interface for Choice persistence."""
 
     @abstractmethod

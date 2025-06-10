@@ -1,13 +1,17 @@
 from abc import ABC, abstractmethod
 from typing import Optional, Type, Any
 
-from src.domain.repositories import UserRepository, CourseRepository, ChoiceRepository
+from src.domain.repositories import (
+    AbstractUserRepository,
+    AbstractCourseRepository,
+    AbstractChoiceRepository,
+)
 
 
 class AbstractUnitOfWork(ABC):
-    users: UserRepository
-    courses: CourseRepository
-    choices: ChoiceRepository
+    users: AbstractUserRepository
+    courses: AbstractCourseRepository
+    choices: AbstractChoiceRepository
 
     def __enter__(self) -> "AbstractUnitOfWork":
         """

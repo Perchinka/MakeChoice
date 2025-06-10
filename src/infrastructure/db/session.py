@@ -22,7 +22,7 @@ def create_session() -> Session:
     return SessionLocal()
 
 
-def get_db():
+def get_db_session():
     """
     FastAPI dependency: yields a session and closes it afterwards.
     Usage in routers: db: Session = Depends(get_db)

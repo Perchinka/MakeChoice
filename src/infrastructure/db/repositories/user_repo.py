@@ -3,12 +3,12 @@ from uuid import UUID
 from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 
-from src.domain.repositories.user_repository import UserRepository
+from src.domain.repositories import AbstractUserRepository
 from src.domain.entities.user import User
 from src.infrastructure.db.models import UserModel
 
 
-class SqlAlchemyUserRepo(UserRepository):
+class SqlAlchemyUserRepo(AbstractUserRepository):
     def __init__(self, session: Session):
         self.session = session
 

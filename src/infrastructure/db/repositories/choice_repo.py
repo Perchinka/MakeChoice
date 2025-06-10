@@ -3,12 +3,12 @@ from uuid import UUID
 from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 
-from src.domain.repositories.choice_repository import ChoiceRepository
+from src.domain.repositories import AbstractChoiceRepository
 from src.domain.entities.choice import Choice
 from src.infrastructure.db.models import ChoiceModel
 
 
-class SqlAlchemyChoiceRepo(ChoiceRepository):
+class SqlAlchemyChoiceRepo(AbstractChoiceRepository):
     def __init__(self, session: Session):
         self.session = session
 

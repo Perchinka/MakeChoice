@@ -7,7 +7,6 @@ from src.domain.entities import User
 from src.domain.exceptions import UserNotFoundError
 from src.domain.unit_of_work import AbstractUnitOfWork
 from src.config import settings
-from src.infrastructure.db.uow import UnitOfWork
 
 
 class UserService:

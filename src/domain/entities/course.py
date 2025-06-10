@@ -1,11 +1,11 @@
-from dataclasses import dataclass
 from datetime import datetime
 from uuid import UUID
 from typing import Optional
 
+from pydantic import BaseModel
 
-@dataclass
-class Course:
+
+class Course(BaseModel):
     """
     An elective course in the catalog.
     """

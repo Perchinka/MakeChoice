@@ -4,7 +4,7 @@ from uuid import UUID
 from src.domain.entities.user import User
 
 
-class UserRepository(ABC):
+class AbstractUserRepository(ABC):
     """Interface for User persistence."""
 
     @abstractmethod

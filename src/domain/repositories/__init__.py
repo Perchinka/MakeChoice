@@ -1,5 +1,9 @@
-from .user_repository import UserRepository
-from .course_repository import CourseRepository
-from .choice_repository import ChoiceRepository
+from .abstract_user_repository import AbstractUserRepository
+from .abstract_course_repository import AbstractCourseRepository
+from .abstract_choice_repository import AbstractChoiceRepository
 
-__all__ = ["UserRepository", "CourseRepository", "ChoiceRepository"]
+__all__ = [
+    "AbstractUserRepository",
+    "AbstractCourseRepository",
+    "AbstractChoiceRepository",
+]

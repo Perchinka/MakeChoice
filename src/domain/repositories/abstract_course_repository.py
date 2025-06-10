@@ -4,7 +4,7 @@ from uuid import UUID
 from src.domain.entities.course import Course
 
 
-class CourseRepository(ABC):
+class AbstractCourseRepository(ABC):
     """Interface for Course persistence."""
 
     @abstractmethod

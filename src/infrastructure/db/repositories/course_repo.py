@@ -3,12 +3,12 @@ from uuid import UUID
 from datetime import datetime
 from sqlalchemy.orm import Session
 
-from src.domain.repositories.course_repository import CourseRepository
+from src.domain.repositories import AbstractCourseRepository
 from src.domain.entities.course import Course
 from src.infrastructure.db.models import CourseModel
 
 
-class SqlAlchemyCourseRepo(CourseRepository):
+class SqlAlchemyCourseRepo(AbstractCourseRepository):
     def __init__(self, session: Session):
         self.session = session
 
