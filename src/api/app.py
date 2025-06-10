@@ -1,14 +1,23 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, status
+from fastapi.responses import JSONResponse
 from src.config import settings
+from src.domain.exceptions import AppError
 from src.logging import setup_logging
 from src.api.routers import auth_router, users_router, courses_router
 from starlette.middleware.sessions import SessionMiddleware
+
+from src.api.error_handler import code_map
 
 
 def create_app() -> FastAPI:
     setup_logging()
 
     app = FastAPI(title=settings.APP_NAME)
+
+    @app.exception_handler(AppError)
+    async def app_error_handler(request: Request, exc: AppError):
+        status_code = code_map.get(type(exc), status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return JSONResponse(status_code=status_code, content={"detail": str(exc)})
 
     app.add_middleware(
         SessionMiddleware,

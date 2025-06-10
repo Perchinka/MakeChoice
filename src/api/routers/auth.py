@@ -1,4 +1,5 @@
 import logging
+from uuid import UUID
 import jwt
 
 from fastapi import APIRouter, Depends, Request, HTTPException, status, Response
@@ -89,19 +90,31 @@ def get_current_user(request: Request) -> UserResponse:
 
     try:
         payload = jwt.decode(
-            token,
-            settings.JWT_SECRET_KEY,
-            algorithms=[settings.JWT_ALGORITHM],
+            token, settings.JWT_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM]
         )
     except jwt.PyJWTError:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid authentication token",
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token"
         )
 
     return UserResponse(
-        sub=payload["sub"],
-        email=payload.get("email", ""),
-        name=payload.get("name", ""),
-        is_admin=payload.get("is_admin", False),
+        sub=payload["sub"], email=payload["email"], name=payload["name"]
     )
+
+
+def require_admin(
+    user: UserResponse = Depends(get_current_user),
+    uow=Depends(get_uow),
+    user_service: UserService = Depends(UserService),
+) -> UserResponse:
+    try:
+        user_id = UUID(user.sub)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid user id")
+
+    if not user_service.is_admin(user_id, uow=uow):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Admin privileges required"
+        )
+
+    return user

@@ -5,4 +5,10 @@ class UserResponse(BaseModel):
     sub: str
     email: str
     name: str
-    is_admin: bool
+
+
+class CourseCreateRequest(BaseModel):
+    code: str
+    title: str
+    description: str
+    max_seats: int

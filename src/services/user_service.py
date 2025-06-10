@@ -1,9 +1,10 @@
-from uuid import uuid4
+from uuid import UUID, uuid4
 from datetime import datetime, timedelta, timezone
 from typing import List
 import jwt
 
 from src.domain.entities import User
+from src.domain.exceptions import UserNotFoundError
 from src.domain.unit_of_work import AbstractUnitOfWork
 from src.config import settings
 from src.infrastructure.db.uow import UnitOfWork
@@ -14,7 +15,7 @@ class UserService:
         with uow:
             user = uow.users.get_by_sso_id(username)
             if not user:
-                raise ValueError("User not found")
+                raise UserNotFoundError(f"User '{username}' not found")
             user.is_admin = True
             user.updated_at = datetime.now(timezone.utc)
             uow.users.update(user)
@@ -55,10 +56,16 @@ class UserService:
             uow.users.add(user)
             return user
 
+    def is_admin(self, user_id: UUID, uow: AbstractUnitOfWork) -> bool:
+        with uow:
+            user = uow.users.get(user_id)
+            return bool(user and user.is_admin)
+
     def create_access_token(self, user: User) -> str:
         payload = {
             "sub": str(user.id),
-            "is_admin": user.is_admin,
+            "email": user.email,
+            "name": user.name,
             "exp": datetime.now(timezone.utc)
             + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES),
         }

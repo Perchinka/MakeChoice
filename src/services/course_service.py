@@ -1,6 +1,7 @@
 from datetime import timezone
 from typing import List
 from src.domain.entities.course import Course
+from src.domain.exceptions import DuplicateCourseCodeError
 from src.domain.unit_of_work import AbstractUnitOfWork
 
 from uuid import uuid4
@@ -23,7 +24,7 @@ class CourseService:
 
         with uow:
             if uow.courses.get_by_code(code):
-                raise ValueError("Course code already exists")
+                raise DuplicateCourseCodeError(f"Course code '{code}' already exists")
             course = Course(
                 id=uuid4(),
                 code=code,
