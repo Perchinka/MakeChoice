@@ -8,11 +8,8 @@ from datetime import datetime
 
 
 class CourseService:
-    def __init__(self, uow: AbstractUnitOfWork):
-        self.uow = uow
-
-    def list_courses(self) -> List[Course]:
-        with self.uow as uow:
+    def list_courses(self, uow: AbstractUnitOfWork) -> List[Course]:
+        with uow:
             return uow.courses.list()
 
     def create_course(
@@ -21,9 +18,10 @@ class CourseService:
         title: str,
         description: str,
         max_seats: int,
+        uow: AbstractUnitOfWork,
     ) -> Course:
 
-        with self.uow as uow:
+        with uow:
             if uow.courses.get_by_code(code):
                 raise ValueError("Course code already exists")
             course = Course(
