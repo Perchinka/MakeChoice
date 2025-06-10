@@ -19,3 +19,16 @@ class UserNotFoundError(AppError):
 # --- Courses ---
 class DuplicateCourseCodeError(AppError):
     """A course with the same code already exists."""
+
+
+class CourseNotFoundError(AppError):
+    """Referenced course could not be found."""
+
+
+# --- Choices ---
+class DuplicateChoiceError(AppError):
+    """User already has that course selected."""
+
+
+class ChoiceNotFoundError(AppError):
+    """No choice exists at the requested priority."""

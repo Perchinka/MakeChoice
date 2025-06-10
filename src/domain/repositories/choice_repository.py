@@ -13,6 +13,11 @@ class ChoiceRepository(ABC):
         ...
 
     @abstractmethod
+    def update(self, choice: Choice) -> None:
+        """Persist changes to an existing Choice."""
+        ...
+
+    @abstractmethod
     def get(self, choice_id: UUID) -> Optional[Choice]:
         """Fetch a Choice by its UUID."""
         ...

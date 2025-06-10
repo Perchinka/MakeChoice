@@ -115,7 +115,6 @@ async def import_courses_from_file(
 
     with uow:
         imported, skipped = course_service.import_courses(courses_data, uow)
-        uow._commit()
 
     imported_out = [CourseResponse(**c.__dict__) for c in imported]
     skipped_out = [

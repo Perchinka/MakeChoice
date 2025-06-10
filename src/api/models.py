@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from datetime import datetime
 from uuid import UUID
 from typing import Optional, List
@@ -36,3 +36,16 @@ class SkippedCourse(BaseModel):
 class ImportCoursesReport(BaseModel):
     imported: List[CourseResponse]
     skipped: List[SkippedCourse]
+
+
+class ChoiceItem(BaseModel):
+    priority: int = Field(..., description="Priority of the choice")
+    course_id: UUID = Field(..., description="UUID of the selected course")
+
+    class Config:
+        schema_extra = {
+            "example": {
+                "priority": 1,
+                "course_id": "550e8400-e29b-41d4-a716-446655440000",
+            }
+        }

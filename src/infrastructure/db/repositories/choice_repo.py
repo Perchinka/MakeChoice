@@ -1,6 +1,6 @@
 from typing import List, Optional, cast
 from uuid import UUID
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 
 from src.domain.repositories.choice_repository import ChoiceRepository
@@ -22,6 +22,11 @@ class SqlAlchemyChoiceRepo(ChoiceRepository):
             updated_at=choice.updated_at,
         )
         self.session.add(model)
+
+    def update(self, choice: Choice) -> None:
+        m = self.session.query(ChoiceModel).filter_by(id=choice.id).one()
+        m.priority = choice.priority  # type: ignore
+        m.updated_at = datetime.now(timezone.utc)  # type: ignore
 
     def get(self, choice_id: UUID) -> Optional[Choice]:
         m = self.session.query(ChoiceModel).filter_by(id=choice_id).one_or_none()
