@@ -17,9 +17,13 @@ class Settings:
         os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60")
     )
 
-    # SSO_CLIENT_ID: str = os.environ["SSO_CLIENT_ID"]
-    # SSO_CLIENT_SECRET: str = os.environ["SSO_CLIENT_SECRET"]
-    # SSO_DISCOVERY_URL: str = os.environ["SSO_DISCOVERY_URL"]
+    SSO_CLIENT_ID: str = os.getenv("SSO_CLIENT_ID", "your-client-id")
+    SSO_CLIENT_SECRET: str = os.getenv("SSO_CLIENT_SECRET", "your-client-secret")
+    SSO_DISCOVERY_URL: str = os.getenv(
+        "SSO_DISCOVERY_URL", "http://sso/.well-known/openid-configuration"
+    )
+
+    SESSION_SECRET_KEY: str = os.getenv("SESSION_SECRET_KEY", "some-random-key")
 
 
 # from src.config import settings

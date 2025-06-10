@@ -15,12 +15,26 @@ services:
     ports:
       - "5432:5432"
 
+  sso:
+    build: ./mock_sso
+    ports:
+      - "8080:80"
+    environment:
+      ISSUER:        http://sso
+      CLIENT_ID:     your-client-id
+      CLIENT_SECRET: your-client-secret
+      SECRET_KEY:    dev_sso_secret
+      REDIRECT_URI:  http://web:8000/auth/callback
+    networks:
+      - elec-net
+
   web:
     build:
       context: .
       dockerfile: Dockerfile
     depends_on:
       - db
+      - sso
     ports:
       - "8000:8000"
     env_file: ".env"
