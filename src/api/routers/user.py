@@ -24,7 +24,7 @@ def get_current_user(request: Request) -> MeResponse:
     try:
         payload = jwt.decode(
             token,
-            settings.JWT_SECRET_KEY,  # ←– use JWT_SECRET_KEY
+            settings.JWT_SECRET_KEY,
             algorithms=[settings.JWT_ALGORITHM],
         )
     except jwt.PyJWTError:

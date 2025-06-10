@@ -49,11 +49,9 @@ def authorize(
     if client_id != CLIENT_ID:
         raise HTTPException(400, "Invalid client_id")
 
-    # generate a one‐time code and remember its nonce
     code = uuid4().hex
     nonce_store[code] = nonce
 
-    # redirect back with code and state
     return RedirectResponse(f"{redirect_uri}?code={code}&state={state}")
 
 
@@ -67,7 +65,6 @@ async def token(
     client_secret: str = Form(None),
     authorization: str = Header(None),
 ):
-    # allow HTTP Basic as well as client_secret_post
     if authorization and authorization.startswith("Basic "):
         import base64 as _b64
 
@@ -80,7 +77,6 @@ async def token(
     if client_id != CLIENT_ID or client_secret != CLIENT_SECRET:
         raise HTTPException(401, "Invalid client credentials")
 
-    # retrieve and remove the nonce
     nonce = nonce_store.pop(code, "")
 
     now = int(time.time())
