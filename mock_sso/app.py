@@ -80,6 +80,7 @@ async def authorize_submit(
     code = uuid4().hex
     nonce_store[code] = (nonce, user)
 
+    # 302 so browser will GET callback
     return RedirectResponse(
         url=f"{redirect_uri}?code={code}&state={state}", status_code=302
     )
