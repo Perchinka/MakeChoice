@@ -26,5 +26,4 @@ class Settings:
     SESSION_SECRET_KEY: str = os.getenv("SESSION_SECRET_KEY", "some-random-key")
 
 
-# from src.config import settings
 settings = Settings()

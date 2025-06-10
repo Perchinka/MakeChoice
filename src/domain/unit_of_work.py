@@ -27,10 +27,10 @@ class AbstractUnitOfWork(ABC):
         if exc_type:
             self.rollback()
         else:
-            self.commit()
+            self._commit()
 
     @abstractmethod
-    def commit(self) -> None:
+    def _commit(self) -> None:
         """Persist all changes."""
         ...
 

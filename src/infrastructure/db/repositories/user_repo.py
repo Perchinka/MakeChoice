@@ -1,6 +1,6 @@
 from typing import Optional, List, cast
 from uuid import UUID
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 
 from src.domain.repositories.user_repository import UserRepository
@@ -85,7 +85,6 @@ class SqlAlchemyUserRepo(UserRepository):
 
     def update(self, user: User) -> None:
         m = self.session.query(UserModel).filter_by(id=user.id).one()
-        # use setattr to avoid assigning to Column descriptors
-        for attr in ("name", "email", "is_admin", "updated_at"):
+        for attr in ("name", "email", "is_admin"):
             setattr(m, attr, getattr(user, attr))
-        # commit happens in UnitOfWork
+        object.__setattr__(m, "updated_at", datetime.now(timezone.utc))

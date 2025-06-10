@@ -1,8 +1,9 @@
-from fastapi import APIRouter, Request, HTTPException, status, Response
+import logging
+from fastapi import APIRouter, Depends, Request, HTTPException, status, Response
 from authlib.integrations.starlette_client import OAuthError
 
+from src.api.dependencies import get_uow
 from src.infrastructure.sso.innopolis_oidc import oauth
-from src.infrastructure.db.uow import UnitOfWork
 from src.services.user_service import UserService
 from src.config import settings
 
@@ -18,71 +19,50 @@ async def login(request: Request):
     return await oauth.innopolis_sso.authorize_redirect(request, redirect_uri)
 
 
-import logging
-
-logger = logging.getLogger(__name__)
-
-
 @router.get("/callback")
-async def auth_callback(request: Request):
+async def auth_callback(
+    request: Request, user_service=Depends(UserService), uow=Depends(get_uow)
+):
     """
     Handle the OIDC callback: exchange code, parse ID token (or hit userinfo),
     create/update local user, then issue a JWT in a cookie.
     """
     try:
         token = await oauth.innopolis_sso.authorize_access_token(request)
-        logger.debug("SSO token response keys: %s", list(token.keys()))
+        logging.debug("SSO token response keys: %s", list(token.keys()))
 
-        # 1) Authlib may already have decoded the id_token into userinfo:
         userinfo = token.get("userinfo")
 
-        # 2) If not, but we have a raw id_token, parse it:
         if not userinfo and token.get("id_token"):
             userinfo = await oauth.innopolis_sso.parse_id_token(request, token)
 
-        # 3) As a last resort, call the userinfo endpoint:
         if not userinfo:
             userinfo = await oauth.innopolis_sso.userinfo(request, token)
 
     except OAuthError as err:
-        logger.error("SSO login failed: %s", err)
+        logging.error("SSO login failed: %s", err)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="SSO login failed",
         )
 
     if not userinfo:
-        logger.error("No userinfo could be extracted from token: %s", token)
+        logging.error("No userinfo could be extracted from token: %s", token)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Could not obtain user info from SSO",
         )
 
-    # Now you have a fully populated userinfo dict
     sso_id = userinfo["sub"]
     email = userinfo.get("email", "")
     name = userinfo.get("name") or userinfo.get("commonname", "")
     is_admin = "Innopoints_Admins" in userinfo.get("group", [])
 
-    with UnitOfWork() as uow:
-        svc = UserService(uow)
-        user = uow.users.get_by_sso_id(sso_id)
-        if not user:
-            user = svc.register_sso(
-                sso_id=sso_id,
-                name=name,
-                email=email,
-                is_admin=is_admin,
-            )
-        else:
-            user.name = name
-            user.email = email
-            user.is_admin = is_admin
-            uow.users.update(user)
+    user = user_service.register_sso(
+        sso_id=sso_id, name=name, email=email, is_admin=is_admin, uow=uow
+    )
+    access_token = user_service.create_access_token(user)
 
-    access_token = svc.create_access_token(user)
-
-    # Issue JWT in a cookie and redirect home
     resp = Response(status_code=status.HTTP_302_FOUND)
     resp.headers["Location"] = "/"
     resp.set_cookie(

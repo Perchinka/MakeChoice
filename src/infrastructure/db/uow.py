@@ -22,7 +22,7 @@ class UnitOfWork(AbstractUnitOfWork):
         self.choices = SqlAlchemyChoiceRepo(self.session)
         return self
 
-    def commit(self) -> None:
+    def _commit(self) -> None:
         self.session.commit()
 
     def rollback(self) -> None:
@@ -34,7 +34,5 @@ class UnitOfWork(AbstractUnitOfWork):
         exc_val: Optional[BaseException],
         exc_tb: Optional[Any],
     ) -> None:
-        # base class handles commit/rollback
         super().__exit__(exc_type, exc_val, exc_tb)
-        # always close the session
         self.session.close()

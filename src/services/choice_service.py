@@ -12,35 +12,30 @@ class ChoiceService:
     def set_user_selection(
         self, user_id: uuid4, selection: List[Dict[str, Any]]
     ) -> None:
-        """
-        Overwrites a user's entire selection. `selection` is a list of
-        {'course_id': UUID, 'priority': int}.
-        """
-        # delete existing choices
-        existing = self.uow.choices.list_by_user(user_id)
-        for choice in existing:
-            self.uow.choices.delete(choice.id)
+        with self.uow as uow:
+            existing = uow.choices.list_by_user(user_id)
+            for choice in existing:
+                uow.choices.delete(choice.id)
 
-        # add new ones
-        for item in selection:
-            c = Choice(
-                id=uuid4(),
-                user_id=user_id,
-                course_id=item["course_id"],
-                priority=item["priority"],
-                created_at=datetime.now(timezone.utc),
-                updated_at=datetime.now(timezone.utc),
-            )
-            self.uow.choices.add(c)
-
-        self.uow.commit()
+            for item in selection:
+                choice = Choice(
+                    id=uuid4(),
+                    user_id=user_id,
+                    course_id=item["course_id"],
+                    priority=item["priority"],
+                    created_at=datetime.now(timezone.utc),
+                    updated_at=datetime.now(timezone.utc),
+                )
+                uow.choices.add(choice)
 
     def get_user_selection(self, user_id) -> List[Dict[str, Any]]:
-        choices = self.uow.choices.list_by_user(user_id)
-        choices.sort(key=lambda c: c.priority)
-        return [
-            {"priority": c.priority, "course_id": str(c.course_id)} for c in choices
-        ]
+        with self.uow as uow:
+            choices = uow.choices.list_by_user(user_id)
+            choices.sort(key=lambda c: c.priority)
+            return [
+                {"priority": c.priority, "course_id": str(c.course_id)} for c in choices
+            ]
 
     def export_all_choices(self) -> List[Choice]:
-        return self.uow.choices.list()
+        with self.uow as uow:
+            return uow.choices.list()

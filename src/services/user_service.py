@@ -1,49 +1,59 @@
 from uuid import uuid4
 from datetime import datetime, timedelta, timezone
-from typing import Optional, List
+from typing import List
 import jwt
 
-from src.domain.entities.user import User
+from src.domain.entities import User
 from src.domain.unit_of_work import AbstractUnitOfWork
 from src.config import settings
+from src.infrastructure.db.uow import UnitOfWork
 
 
 class UserService:
-    def __init__(self, uow: AbstractUnitOfWork):
-        self.uow = uow
+    def promote(self, username: str, uow: AbstractUnitOfWork) -> User:
+        with uow:
+            user = uow.users.get_by_sso_id(username)
+            if not user:
+                raise ValueError("User not found")
+            user.is_admin = True
+            user.updated_at = datetime.now(timezone.utc)
+            uow.users.update(user)
+            return user
 
-    def promote(self, username: str) -> User:
-        user = self.uow.users.get_by_sso_id(username)
-        if not user:
-            raise ValueError("User not found")
-        user.is_admin = True
-        user.updated_at = datetime.now(timezone.utc)
-        self.uow.users.update(user)
-        self.uow.commit()
-        return user
-
-    def list_users(self) -> List[User]:
-        return self.uow.users.list()
+    def list_users(self, uow: AbstractUnitOfWork) -> List[User]:
+        with uow:
+            return uow.users.list()
 
     def register_sso(
-        self, *, sso_id: str, name: str, email: str, is_admin: bool
+        self,
+        *,
+        sso_id: str,
+        name: str,
+        email: str,
+        is_admin: bool,
+        uow: AbstractUnitOfWork,
     ) -> User:
-        if self.uow.users.get_by_sso_id(sso_id):
-            raise ValueError("SSO user already exists")
+        with uow:
+            user = uow.users.get_by_sso_id(sso_id)
+            if user:
+                user.name = name
+                user.email = email
+                user.is_admin = is_admin
+                uow.users.update(user)
+                return user
 
-        now = datetime.now(timezone.utc)
-        user = User(
-            id=uuid4(),
-            sso_id=sso_id,
-            name=name,
-            email=email,
-            is_admin=is_admin,
-            created_at=now,
-            updated_at=now,
-        )
-        self.uow.users.add(user)
-        self.uow.commit()
-        return user
+            now = datetime.now(timezone.utc)
+            user = User(
+                id=uuid4(),
+                sso_id=sso_id,
+                name=name,
+                email=email,
+                is_admin=is_admin,
+                created_at=now,
+                updated_at=now,
+            )
+            uow.users.add(user)
+            return user
 
     def create_access_token(self, user: User) -> str:
         payload = {
