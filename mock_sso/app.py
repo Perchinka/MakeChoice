@@ -1,9 +1,9 @@
+import base64
 import os
 import time
-import base64
 from uuid import uuid4
-from fastapi import FastAPI, Request, HTTPException, Form, Header
-from fastapi.responses import RedirectResponse
+from fastapi import FastAPI, Header, Request, Form, HTTPException, status
+from fastapi.responses import HTMLResponse, RedirectResponse
 from jose import jwt
 
 app = FastAPI()
@@ -13,8 +13,8 @@ CLIENT_ID = os.getenv("CLIENT_ID", "your-client-id")
 CLIENT_SECRET = os.getenv("CLIENT_SECRET", "your-client-secret")
 SECRET_KEY = os.getenv("SECRET_KEY", "dev_sso_secret")
 
-# In‐memory store: code, nonce
-nonce_store: dict[str, str] = {}
+# in-memory: auth code → (nonce, user)
+nonce_store: dict[str, tuple[str, str]] = {}
 
 
 @app.get("/.well-known/openid-configuration")
@@ -28,15 +28,11 @@ def discovery():
         "grant_types_supported": ["authorization_code"],
         "scopes_supported": ["openid", "email", "profile"],
         "id_token_signing_alg_values_supported": ["HS256"],
-        "token_endpoint_auth_methods_supported": [
-            "client_secret_basic",
-            "client_secret_post",
-        ],
     }
 
 
-@app.get("/authorize")
-def authorize(
+@app.get("/authorize", response_class=HTMLResponse)
+async def authorize_form(
     response_type: str,
     client_id: str,
     redirect_uri: str,
@@ -44,20 +40,53 @@ def authorize(
     state: str,
     nonce: str,
 ):
-    if response_type != "code":
-        raise HTTPException(400, "Only response_type=code is supported")
-    if client_id != CLIENT_ID:
-        raise HTTPException(400, "Invalid client_id")
+    if response_type != "code" or client_id != CLIENT_ID:
+        raise HTTPException(400, "Bad authorize request")
+    return f"""
+    <!DOCTYPE html>
+    <html><head><meta charset="utf-8"><title>Mock SSO</title></head>
+    <body style="text-align:center;font-family:sans-serif;margin-top:50px;">
+      <h1>Mock SSO Login</h1>
+      <form method="post" action="/authorize">
+        <input type="hidden" name="response_type" value="{response_type}"/>
+        <input type="hidden" name="client_id"      value="{client_id}"/>
+        <input type="hidden" name="redirect_uri"   value="{redirect_uri}"/>
+        <input type="hidden" name="state"          value="{state}"/>
+        <input type="hidden" name="nonce"          value="{nonce}"/>
+        <button name="user" value="student-001" style="margin:0 1em;padding:1em 2em;">
+          Login as Student
+        </button>
+        <button name="user" value="admin-001" style="margin:0 1em;padding:1em 2em;">
+          Login as Admin
+        </button>
+      </form>
+    </body>
+    </html>
+    """
+
+
+@app.post("/authorize")
+async def authorize_submit(
+    response_type: str = Form(...),
+    client_id: str = Form(...),
+    redirect_uri: str = Form(...),
+    state: str = Form(...),
+    nonce: str = Form(...),
+    user: str = Form(...),
+):
+    if response_type != "code" or client_id != CLIENT_ID:
+        raise HTTPException(400, "Invalid authorize submission")
 
     code = uuid4().hex
-    nonce_store[code] = nonce
+    nonce_store[code] = (nonce, user)
 
-    return RedirectResponse(f"{redirect_uri}?code={code}&state={state}")
+    return RedirectResponse(
+        url=f"{redirect_uri}?code={code}&state={state}", status_code=302
+    )
 
 
 @app.post("/token")
 async def token(
-    request: Request,
     grant_type: str = Form(...),
     code: str = Form(...),
     redirect_uri: str = Form(...),
@@ -66,43 +95,39 @@ async def token(
     authorization: str = Header(None),
 ):
     if authorization and authorization.startswith("Basic "):
-        import base64 as _b64
-
-        creds = _b64.b64decode(authorization[6:]).decode()
+        creds = base64.b64decode(authorization[6:]).decode()
         client_id, client_secret = creds.split(":", 1)
 
     if grant_type != "authorization_code" or code not in nonce_store:
-        raise HTTPException(400, "Invalid grant_type or code")
+        raise HTTPException(400, "Bad grant or code")
 
     if client_id != CLIENT_ID or client_secret != CLIENT_SECRET:
         raise HTTPException(401, "Invalid client credentials")
 
-    nonce = nonce_store.pop(code, "")
+    nonce, user = nonce_store.pop(code)
 
     now = int(time.time())
-    payload = {
+
+    is_admin = user.startswith("admin-")
+    id_payload = {
         "iss": ISSUER_URL,
-        "sub": "dev-user-123",
+        "sub": user,
         "aud": client_id,
         "exp": now + 3600,
         "iat": now,
         "nonce": nonce,
-        "email": "dev@example.com",
-        "commonname": "Dev User",
-        "group": ["Innopoints_Admins"],
+        "email": f"{user}@example.com",
+        "commonname": "Admin User" if is_admin else "Student User",
+        "group": ["Innopoints_Admins"] if is_admin else [],
     }
-    id_token = jwt.encode(payload, SECRET_KEY, algorithm="HS256")
+    id_token = jwt.encode(id_payload, SECRET_KEY, algorithm="HS256")
 
-    payload = {
+    return {
         "access_token": "dev-access-token",
         "token_type": "Bearer",
         "expires_in": 3600,
         "id_token": id_token,
     }
-
-    __import__("pprint").pprint(payload)
-
-    return payload
 
 
 @app.get("/jwks")

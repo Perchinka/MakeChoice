@@ -1,10 +1,12 @@
 from fastapi import FastAPI, Request, status
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, HTMLResponse
 from src.config import settings
 from src.domain.exceptions import AppError
 from src.logging import setup_logging
 from src.api.routers import auth_router, users_router, courses_router
 from starlette.middleware.sessions import SessionMiddleware
+from fastapi.templating import Jinja2Templates
+from fastapi.staticfiles import StaticFiles
 
 from src.api.error_handler import code_map
 
@@ -30,6 +32,12 @@ def create_app() -> FastAPI:
     app.include_router(auth_router, prefix="/auth", tags=["auth"])
     app.include_router(users_router, prefix="/users", tags=["users"])
     app.include_router(courses_router, prefix="/courses", tags=["courses"])
+
+    templates = Jinja2Templates(directory="templates")
+
+    @app.get("/", response_class=HTMLResponse)
+    async def home(request: Request):
+        return templates.TemplateResponse("index.html", {"request": request})
 
     return app
 
