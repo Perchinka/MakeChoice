@@ -8,7 +8,6 @@ while ! </dev/tcp/db/5432; do
 done
 
 # Run Alembic migrations via the module interface
-# (make sure your alembic.ini is in /app or adjust -c accordingly)
 python -m alembic upgrade head
 
 # Start the FastAPI app

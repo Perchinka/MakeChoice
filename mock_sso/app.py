@@ -21,7 +21,7 @@ nonce_store: dict[str, str] = {}
 def discovery():
     return {
         "issuer": ISSUER_URL,
-        "authorization_endpoint": f"{ISSUER_URL}/authorize",
+        "authorization_endpoint": f"http://localhost:8080/authorize",
         "token_endpoint": f"{ISSUER_URL}/token",
         "jwks_uri": f"{ISSUER_URL}/jwks",
         "response_types_supported": ["code"],

@@ -69,7 +69,7 @@ async def auth_callback(
     access_token = user_service.create_access_token(user)
 
     resp = Response(status_code=status.HTTP_302_FOUND)
-    resp.headers["Location"] = "/"
+    resp.headers["Location"] = "/users/me"
     resp.set_cookie(
         key="access_token",
         value=access_token,
