@@ -1,6 +1,6 @@
 from typing import List, Dict, Any
-from domain.entities.choice import Choice
-from domain.unit_of_work import AbstractUnitOfWork
+from src.domain.entities.choice import Choice
+from src.domain.unit_of_work import AbstractUnitOfWork
 from uuid import uuid4, UUID
 from datetime import datetime, timezone
 

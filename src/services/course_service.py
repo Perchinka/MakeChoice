@@ -1,7 +1,7 @@
 from datetime import timezone
 from typing import List
-from domain.entities.course import Course
-from domain.unit_of_work import AbstractUnitOfWork
+from src.domain.entities.course import Course
+from src.domain.unit_of_work import AbstractUnitOfWork
 
 from uuid import uuid4
 from datetime import datetime

@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from src.config import settings
 from src.logging import setup_logging
-from src.api.routers import auth_router, users_router
+from src.api.routers import auth_router, users_router, courses_router
 from starlette.middleware.sessions import SessionMiddleware
 
 
@@ -20,6 +20,7 @@ def create_app() -> FastAPI:
 
     app.include_router(auth_router, prefix="/auth", tags=["auth"])
     app.include_router(users_router, prefix="/users", tags=["users"])
+    app.include_router(courses_router, prefix="/courses", tags=["courses"])
 
     return app
 
