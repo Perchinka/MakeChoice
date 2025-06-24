@@ -1,0 +1,3137 @@
+Directory structure:
+└── SvetaMakeChoice/
+    ├── README.md
+    ├── Dockerfile
+    ├── Makefile
+    ├── alembic.ini
+    ├── docker-compose.yml
+    ├── entrypoint.sh
+    ├── example.env
+    ├── pyproject.toml
+    ├── migrations/
+    │   ├── README
+    │   ├── env.py
+    │   ├── script.py.mako
+    │   ├── __pycache__/
+    │   └── versions/
+    │       ├── 2475dc0cabff_initial_schema.py
+    │       ├── 5d90ac5b7342_seed_initial_courses_data.py
+    │       ├── bcacd8abee0d_seed_fake_choices.py
+    │       ├── d8497dd06814_update_role_system.py
+    │       ├── daf4585226fb_seed_fake_students.py
+    │       └── __pycache__/
+    ├── mock_sso/
+    │   ├── Dockerfile
+    │   ├── app.py
+    │   └── requirements.txt
+    ├── src/
+    │   ├── README.md
+    │   ├── __init__.py
+    │   ├── config.py
+    │   ├── logging.py
+    │   ├── main.py
+    │   ├── __pycache__/
+    │   ├── api/
+    │   │   ├── README.md
+    │   │   ├── __init__.py
+    │   │   ├── app.py
+    │   │   ├── dependencies.py
+    │   │   ├── error_handler.py
+    │   │   ├── models.py
+    │   │   └── routers/
+    │   │       ├── __init__.py
+    │   │       ├── auth.py
+    │   │       ├── choices.py
+    │   │       ├── courses.py
+    │   │       └── users.py
+    │   ├── domain/
+    │   │   ├── README.md
+    │   │   ├── __init__.py
+    │   │   ├── exceptions.py
+    │   │   ├── unit_of_work.py
+    │   │   ├── entities/
+    │   │   │   ├── __init__.py
+    │   │   │   ├── choice.py
+    │   │   │   ├── course.py
+    │   │   │   └── user.py
+    │   │   └── repositories/
+    │   │       ├── __init__.py
+    │   │       ├── abstract_choice_repository.py
+    │   │       ├── abstract_course_repository.py
+    │   │       └── abstract_user_repository.py
+    │   ├── infrastructure/
+    │   │   ├── README.md
+    │   │   ├── __init__.py
+    │   │   ├── __pycache__/
+    │   │   ├── db/
+    │   │   │   ├── __init__.py
+    │   │   │   ├── models.py
+    │   │   │   ├── session.py
+    │   │   │   ├── uow.py
+    │   │   │   ├── __pycache__/
+    │   │   │   └── repositories/
+    │   │   │       ├── __init__.py
+    │   │   │       ├── choice_repo.py
+    │   │   │       ├── course_repo.py
+    │   │   │       └── user_repo.py
+    │   │   └── sso/
+    │   │       ├── __init__.py
+    │   │       └── innopolis_oidc.py
+    │   └── services/
+    │       ├── __init__.py
+    │       ├── choice_service.py
+    │       ├── course_service.py
+    │       └── user_service.py
+    └── test_data/
+        └── courses.csv
+
+================================================
+File: README.md
+================================================
+**Electives(MakeChoice) MVP** — сервис для управления элективными курсами и выборами студентов.
+
+## Требования
+
+* **Docker** ≥ 28.1.1
+* **Docker Compose** ≥ 2.36.0
+
+## Настройка окружения
+
+1. Скопировать файл примера переменных окружения:
+
+   ```bash
+   cp example.env .env
+   ```
+2. Открыть `.env` и указать реальные значения:
+
+   * `DATABASE_URL` (например, `postgresql://postgres:postgres@db:5432/elecdb`)
+
+## Быстрый старт (Docker)
+
+1. Собрать образы:
+
+   ```bash
+   make build
+   ```
+2. Запустить сервисы в фоне:
+   ```bash
+   make up
+   ```
+3. Применить миграции:
+   ```bash
+   make migrate
+   ```
+4. Открыть в браузере:
+
+   * API:  [http://localhost:8000](http://localhost:8000)
+   * Swagger UI: [http://localhost:8000/docs](http://localhost:8000/docs)
+
+
+## 📂 Структура проекта
+
+```
+SvetaMakeChoice/
+├── migrations/         # Схемы и данные для Alembic
+├── src/                # Исходники
+│   ├── api/            # HTTP-слой (FastAPI): роутеры, модели, обработка ошибок
+│   ├── domain/         # Доменная модель: сущности, интерфейсы репозиториев, UoW, исключения
+│   ├── infrastructure/ # Реализация репозиториев (SQLAlchemy), SSO-клиент
+│   └── services/       # Бизнес-логика (use cases)
+├── test_data/          # Пример CSV для импорта курсов
+├── Dockerfile
+├── docker-compose.yml
+├── Makefile
+└── README.md          
+```
+
+## Документация API
+
+После старта доступна автоматическая документация:
+
+* **Swagger UI**:  `http://localhost:8000/docs`
+
+
+
+================================================
+File: Dockerfile
+================================================
+FROM python:3.11-slim
+
+# Ensure logs are output immediately
+ENV PYTHONUNBUFFERED=1
+
+# Install Poetry
+RUN apt-get update \
+    && apt-get install -y curl postgresql-client\
+    && curl -sSL https://install.python-poetry.org | python3 - \
+    && ln -s /root/.local/bin/poetry /usr/local/bin/poetry \
+    && apt-get purge -y --auto-remove curl \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY pyproject.toml poetry.lock /app/
+
+RUN poetry config virtualenvs.create false \
+    && poetry install --no-root
+
+COPY . /app
+
+RUN chmod +x /app/entrypoint.sh
+ENTRYPOINT ["/app/entrypoint.sh"]
+
+CMD ["python", "-m", "login_server"]
+
+
+
+================================================
+File: Makefile
+================================================
+.PHONY: build up down logs migrate shell
+
+build:
+	docker-compose build
+
+up:
+	docker-compose up -d
+
+down:
+	docker-compose down
+
+
+
+
+================================================
+File: alembic.ini
+================================================
+# A generic, single database configuration.
+
+[alembic]
+# path to migration scripts.
+# this is typically a path given in POSIX (e.g. forward slashes)
+# format, relative to the token %(here)s which refers to the location of this
+# ini file
+script_location = %(here)s/migrations
+
+# template used to generate migration file names; The default value is %%(rev)s_%%(slug)s
+# Uncomment the line below if you want the files to be prepended with date and time
+# see https://alembic.sqlalchemy.org/en/latest/tutorial.html#editing-the-ini-file
+# for all available tokens
+# file_template = %%(year)d_%%(month).2d_%%(day).2d_%%(hour).2d%%(minute).2d-%%(rev)s_%%(slug)s
+
+# sys.path path, will be prepended to sys.path if present.
+# defaults to the current working directory.  for multiple paths, the path separator
+# is defined by "path_separator" below.
+prepend_sys_path = .
+
+
+# timezone to use when rendering the date within the migration file
+# as well as the filename.
+# If specified, requires the python>=3.9 or backports.zoneinfo library and tzdata library.
+# Any required deps can installed by adding `alembic[tz]` to the pip requirements
+# string value is passed to ZoneInfo()
+# leave blank for localtime
+# timezone =
+
+# max length of characters to apply to the "slug" field
+# truncate_slug_length = 40
+
+# set to 'true' to run the environment during
+# the 'revision' command, regardless of autogenerate
+# revision_environment = false
+
+# set to 'true' to allow .pyc and .pyo files without
+# a source .py file to be detected as revisions in the
+# versions/ directory
+# sourceless = false
+
+# version location specification; This defaults
+# to <script_location>/versions.  When using multiple version
+# directories, initial revisions must be specified with --version-path.
+# The path separator used here should be the separator specified by "path_separator"
+# below.
+# version_locations = %(here)s/bar:%(here)s/bat:%(here)s/alembic/versions
+
+# path_separator; This indicates what character is used to split lists of file
+# paths, including version_locations and prepend_sys_path within configparser
+# files such as alembic.ini.
+# The default rendered in new alembic.ini files is "os", which uses os.pathsep
+# to provide os-dependent path splitting.
+#
+# Note that in order to support legacy alembic.ini files, this default does NOT
+# take place if path_separator is not present in alembic.ini.  If this
+# option is omitted entirely, fallback logic is as follows:
+#
+# 1. Parsing of the version_locations option falls back to using the legacy
+#    "version_path_separator" key, which if absent then falls back to the legacy
+#    behavior of splitting on spaces and/or commas.
+# 2. Parsing of the prepend_sys_path option falls back to the legacy
+#    behavior of splitting on spaces, commas, or colons.
+#
+# Valid values for path_separator are:
+#
+# path_separator = :
+# path_separator = ;
+# path_separator = space
+# path_separator = newline
+#
+# Use os.pathsep. Default configuration used for new projects.
+path_separator = os
+
+# set to 'true' to search source files recursively
+# in each "version_locations" directory
+# new in Alembic version 1.10
+# recursive_version_locations = false
+
+# the output encoding used when revision files
+# are written from script.py.mako
+# output_encoding = utf-8
+
+# database URL.  This is consumed by the user-maintained env.py script only.
+# other means of configuring database URLs may be customized within the env.py
+# file.
+sqlalchemy.url = ${DATABASE_URL}
+
+
+[post_write_hooks]
+# post_write_hooks defines scripts or Python functions that are run
+# on newly generated revision scripts.  See the documentation for further
+# detail and examples
+
+# format using "black" - use the console_scripts runner, against the "black" entrypoint
+# hooks = black
+# black.type = console_scripts
+# black.entrypoint = black
+# black.options = -l 79 REVISION_SCRIPT_FILENAME
+
+# lint with attempts to fix using "ruff" - use the exec runner, execute a binary
+# hooks = ruff
+# ruff.type = exec
+# ruff.executable = %(here)s/.venv/bin/ruff
+# ruff.options = check --fix REVISION_SCRIPT_FILENAME
+
+# Logging configuration.  This is also consumed by the user-maintained
+# env.py script only.
+[loggers]
+keys = root,sqlalchemy,alembic
+
+[handlers]
+keys = console
+
+[formatters]
+keys = generic
+
+[logger_root]
+level = WARNING
+handlers = console
+qualname =
+
+[logger_sqlalchemy]
+level = WARNING
+handlers =
+qualname = sqlalchemy.engine
+
+[logger_alembic]
+level = INFO
+handlers =
+qualname = alembic
+
+[handler_console]
+class = StreamHandler
+args = (sys.stderr,)
+level = NOTSET
+formatter = generic
+
+[formatter_generic]
+format = %(levelname)-5.5s [%(name)s] %(message)s
+datefmt = %H:%M:%S
+
+
+
+================================================
+File: docker-compose.yml
+================================================
+version: "3.8"
+
+services:
+  db:
+    image: postgres:15
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: elecdb
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - elec-net
+    ports:
+      - "5432:5432"
+
+  sso:
+    build: ./mock_sso
+    ports:
+      - "8080:80"
+    environment:
+      ISSUER:        http://sso
+      CLIENT_ID:     your-client-id
+      CLIENT_SECRET: your-client-secret
+      SECRET_KEY:    dev_sso_secret
+      REDIRECT_URI:  http://web:8000/auth/callback
+    networks:
+      - elec-net
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      - db
+      - sso
+    ports:
+      - "8000:8000"
+    env_file: ".env"
+    volumes:
+      - .:/app:ro
+    networks:
+      - elec-net
+
+volumes:
+  postgres_data:
+
+networks:
+  elec-net:
+    external:
+      name: shared_elec_net
+
+
+
+================================================
+File: entrypoint.sh
+================================================
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Wait for Postgres to be ready
+while ! </dev/tcp/db/5432; do
+  echo "Waiting for Postgres…"
+  sleep 1
+done
+
+# Run Alembic migrations via the module interface
+python -m alembic upgrade head
+
+# Start the FastAPI app
+exec uvicorn src.api.app:app \
+     --host 0.0.0.0 \
+     --port "${PORT:-8000}" \
+     $( [ "${ENV:-}" = "development" ] && echo "--reload" )
+
+
+
+================================================
+File: example.env
+================================================
+APP_NAME=elec-api
+ENV=development
+
+DATABASE_URL=postgresql://user:pass@db:5432/elecdb
+SQL_ECHO=False
+
+JWT_SECRET_KEY=supersecretkey
+JWT_ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_MINUTES=60
+
+SSO_CLIENT_ID=your-client-id
+SSO_CLIENT_SECRET=your-client-secret
+SSO_DISCOVERY_URL=https://sso.innopolis.university/.well-known/openid-configuration
+
+SESSION_SECRET_KEY=some-random-key
+
+FRONTEND_URL=http://localhost:8501
+
+# Copy this values to .env file
+
+
+
+================================================
+File: pyproject.toml
+================================================
+[project]
+name = "electives-mvp"
+version = "0.1.0"
+description = "Electives MVP project"
+authors = [
+    {name = "Team",email = "you@example.com"}
+]
+license = {text = "MIT"}
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi (>=0.115.12,<0.116.0)",
+    "uvicorn[standard] (>=0.34.3,<0.35.0)",
+    "sqlalchemy (>=2.0.41,<3.0.0)",
+    "psycopg[binary] (>=3.2.9,<4.0.0)",
+    "alembic (>=1.16.1,<2.0.0)",
+    "python-dotenv (>=1.1.0,<2.0.0)",
+    "python-multipart (>=0.0.20,<0.0.21)",
+    "pydantic (>=2.11.5,<3.0.0)",
+    "python-telegram-bot (>=22.1,<23.0)",
+    "psycopg2-binary (>=2.9.10,<3.0.0)",
+    "pyjwt (>=2.10.1,<3.0.0)",
+    "authlib (>=1.6.0,<2.0.0)",
+    "itsdangerous (>=2.2.0,<3.0.0)",
+    "jinja2 (>=3.1.6,<4.0.0)",
+    "pydantic-settings (>=2.10.1,<3.0.0)",
+]
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[[tool.poetry.packages]]
+include = "src"
+
+
+
+================================================
+File: migrations/README
+================================================
+Generic single-database configuration.
+
+
+================================================
+File: migrations/env.py
+================================================
+from logging.config import fileConfig
+from sqlalchemy import pool, create_engine
+
+from alembic import context
+
+from src.config import settings
+from src.infrastructure.db.models import Base
+
+# this is the Alembic Config object, which provides
+# access to the values within the .ini file in use.
+config = context.config
+
+# Interpret the config file for Python logging.
+# This line sets up loggers basically.
+if config.config_file_name is not None:
+    fileConfig(config.config_file_name)
+
+# add your model's MetaData object here
+# for 'autogenerate' support
+# from myapp import mymodel
+# target_metadata = mymodel.Base.metadata
+target_metadata = Base.metadata
+
+
+def run_migrations_offline() -> None:
+    """Run migrations in 'offline' mode.
+
+    This configures the context with just a URL
+    and not an Engine, though an Engine is acceptable
+    here as well.  By skipping the Engine creation
+    we don't even need a DBAPI to be available.
+
+    Calls to context.execute() here emit the given string to the
+    script output.
+
+    """
+    url = config.get_main_option("sqlalchemy.url")
+    context.configure(
+        url=url,
+        target_metadata=target_metadata,
+        literal_binds=True,
+        dialect_opts={"paramstyle": "named"},
+    )
+
+    with context.begin_transaction():
+        context.run_migrations()
+
+
+def run_migrations_online():
+    """Run migrations in 'online' mode."""
+    connectable = create_engine(
+        settings.DATABASE_URL,
+        poolclass=pool.NullPool,
+    )
+
+    with connectable.connect() as connection:
+        context.configure(
+            connection=connection,
+            target_metadata=target_metadata,
+        )
+
+        with context.begin_transaction():
+            context.run_migrations()
+
+
+if context.is_offline_mode():
+    run_migrations_offline()
+else:
+    run_migrations_online()
+
+if context.is_offline_mode():
+    run_migrations_offline()
+else:
+    run_migrations_online()
+
+
+
+================================================
+File: migrations/script.py.mako
+================================================
+"""${message}
+
+Revision ID: ${up_revision}
+Revises: ${down_revision | comma,n}
+Create Date: ${create_date}
+
+"""
+from typing import Sequence, Union
+
+from alembic import op
+import sqlalchemy as sa
+${imports if imports else ""}
+
+# revision identifiers, used by Alembic.
+revision: str = ${repr(up_revision)}
+down_revision: Union[str, None] = ${repr(down_revision)}
+branch_labels: Union[str, Sequence[str], None] = ${repr(branch_labels)}
+depends_on: Union[str, Sequence[str], None] = ${repr(depends_on)}
+
+
+def upgrade() -> None:
+    """Upgrade schema."""
+    ${upgrades if upgrades else "pass"}
+
+
+def downgrade() -> None:
+    """Downgrade schema."""
+    ${downgrades if downgrades else "pass"}
+
+
+
+
+================================================
+File: migrations/versions/2475dc0cabff_initial_schema.py
+================================================
+"""initial schema
+
+Revision ID: 2475dc0cabff
+Revises:
+Create Date: 2025-06-09 19:40:54.727183
+
+"""
+
+from typing import Sequence, Union
+
+from alembic import op
+import sqlalchemy as sa
+
+
+revision: str = "2475dc0cabff"
+down_revision: Union[str, None] = None
+branch_labels: Union[str, Sequence[str], None] = None
+depends_on: Union[str, Sequence[str], None] = None
+
+
+def upgrade() -> None:
+    """Upgrade schema."""
+    op.create_table(
+        "courses",
+        sa.Column("id", sa.UUID(), nullable=False),
+        sa.Column("code", sa.Text(), nullable=False),
+        sa.Column("title", sa.Text(), nullable=False),
+        sa.Column("description", sa.Text(), nullable=True),
+        sa.Column("max_seats", sa.Integer(), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
+        sa.PrimaryKeyConstraint("id"),
+    )
+    op.create_index(op.f("ix_courses_code"), "courses", ["code"], unique=True)
+    op.create_table(
+        "users",
+        sa.Column("id", sa.UUID(), nullable=False),
+        sa.Column("sso_id", sa.Text(), nullable=False),
+        sa.Column("name", sa.Text(), nullable=False),
+        sa.Column("email", sa.Text(), nullable=False),
+        sa.Column("is_admin", sa.Boolean(), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
+        sa.PrimaryKeyConstraint("id"),
+    )
+    op.create_index(op.f("ix_users_email"), "users", ["email"], unique=True)
+    op.create_index(op.f("ix_users_sso_id"), "users", ["sso_id"], unique=True)
+    op.create_table(
+        "choices",
+        sa.Column("id", sa.UUID(), nullable=False),
+        sa.Column("user_id", sa.UUID(), nullable=False),
+        sa.Column("course_id", sa.UUID(), nullable=False),
+        sa.Column("priority", sa.SmallInteger(), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
+        sa.CheckConstraint("priority BETWEEN 1 AND 5", name="chk_priority_range"),
+        sa.ForeignKeyConstraint(["course_id"], ["courses.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("user_id", "course_id", name="uq_user_course"),
+        sa.UniqueConstraint("user_id", "priority", name="uq_user_priority"),
+    )
+
+
+def downgrade() -> None:
+    """Downgrade schema."""
+    op.drop_table("choices")
+    op.drop_table("users")
+    op.drop_table("courses")
+
+
+
+================================================
+File: migrations/versions/5d90ac5b7342_seed_initial_courses_data.py
+================================================
+"""seed initial courses data
+
+Revision ID: 5d90ac5b7342
+Revises: 2475dc0cabff
+Create Date: 2025-06-10 01:20:20.002066
+
+"""
+
+from typing import Sequence, Union
+from alembic import op
+import sqlalchemy as sa
+from sqlalchemy.sql import table, column
+from datetime import datetime, timezone
+import uuid
+
+
+# revision identifiers, used by Alembic.
+revision: str = "5d90ac5b7342"
+down_revision: Union[str, None] = "2475dc0cabff"
+branch_labels: Union[str, Sequence[str], None] = None
+depends_on: Union[str, Sequence[str], None] = None
+
+
+def upgrade() -> None:
+    now = datetime.now(timezone.utc)
+
+    course_table = table(
+        "courses",
+        column("id"),
+        column("code"),
+        column("title"),
+        column("description"),
+        column("max_seats"),
+        column("created_at"),
+        column("updated_at"),
+    )
+
+    op.bulk_insert(
+        course_table,
+        [
+            {
+                "id": uuid.uuid4(),
+                "code": "CS101",
+                "title": "Introduction to Programming",
+                "description": "Fundamentals of programming using Python.",
+                "max_seats": 30,
+                "created_at": now,
+                "updated_at": now,
+            },
+            {
+                "id": uuid.uuid4(),
+                "code": "MATH201",
+                "title": "Linear Algebra",
+                "description": "Vector spaces, matrices, and linear transformations.",
+                "max_seats": 25,
+                "created_at": now,
+                "updated_at": now,
+            },
+            {
+                "id": uuid.uuid4(),
+                "code": "STAT202",
+                "title": "Probability and Statistics",
+                "description": "Basic probability theory and statistical inference.",
+                "max_seats": 40,
+                "created_at": now,
+                "updated_at": now,
+            },
+            {
+                "id": uuid.uuid4(),
+                "code": "CS303",
+                "title": "Algorithms",
+                "description": "Design and analysis of algorithms.",
+                "max_seats": 20,
+                "created_at": now,
+                "updated_at": now,
+            },
+        ],
+    )
+
+
+def downgrade() -> None:
+    op.execute(
+        sa.text("DELETE FROM courses WHERE code IN (:c1, :c2, :c3, :c4)"),
+        {"c1": "CS101", "c2": "MATH201", "c3": "STAT202", "c4": "CS303"},
+    )
+
+
+
+================================================
+File: migrations/versions/bcacd8abee0d_seed_fake_choices.py
+================================================
+"""seed fake choices
+
+Revision ID: bcacd8abee0d
+Revises: daf4585226fb
+Create Date: 2025-06-10 01:28:48.335321
+
+"""
+
+from typing import Sequence, Union
+from alembic import op
+import sqlalchemy as sa
+from sqlalchemy.sql import table, column
+from datetime import datetime, timezone
+import uuid
+
+
+# revision identifiers, used by Alembic.
+revision: str = "bcacd8abee0d"
+down_revision: Union[str, None] = "daf4585226fb"
+branch_labels: Union[str, Sequence[str], None] = None
+depends_on: Union[str, Sequence[str], None] = ["5d90ac5b7342", "daf4585226fb"]
+
+
+def upgrade() -> None:
+    conn = op.get_bind()
+    now = datetime.now(timezone.utc)
+
+    user_ids = {
+        sso: conn.execute(
+            sa.text("SELECT id FROM users WHERE sso_id = :sso"),
+            {"sso": sso},
+        ).scalar_one()
+        for sso in ("student-001", "student-002", "student-003")
+    }
+
+    course_ids = {
+        code: conn.execute(
+            sa.text("SELECT id FROM courses WHERE code = :code"),
+            {"code": code},
+        ).scalar_one()
+        for code in ("CS101", "MATH201", "STAT202", "CS303")
+    }
+
+    choice_table = table(
+        "choices",
+        column("id"),
+        column("user_id"),
+        column("course_id"),
+        column("priority"),
+        column("created_at"),
+        column("updated_at"),
+    )
+
+    choices = [
+        {
+            "id": uuid.uuid4(),
+            "user_id": user_ids["student-001"],
+            "course_id": course_ids["CS101"],
+            "priority": 1,
+            "created_at": now,
+            "updated_at": now,
+        },
+        {
+            "id": uuid.uuid4(),
+            "user_id": user_ids["student-001"],
+            "course_id": course_ids["MATH201"],
+            "priority": 2,
+            "created_at": now,
+            "updated_at": now,
+        },
+        {
+            "id": uuid.uuid4(),
+            "user_id": user_ids["student-002"],
+            "course_id": course_ids["CS101"],
+            "priority": 1,
+            "created_at": now,
+            "updated_at": now,
+        },
+        {
+            "id": uuid.uuid4(),
+            "user_id": user_ids["student-002"],
+            "course_id": course_ids["STAT202"],
+            "priority": 2,
+            "created_at": now,
+            "updated_at": now,
+        },
+        {
+            "id": uuid.uuid4(),
+            "user_id": user_ids["student-003"],
+            "course_id": course_ids["CS303"],
+            "priority": 1,
+            "created_at": now,
+            "updated_at": now,
+        },
+    ]
+
+    op.bulk_insert(choice_table, choices)
+
+
+def downgrade() -> None:
+    op.execute(
+        sa.text(
+            "DELETE FROM choices WHERE user_id IN ("
+            " SELECT id FROM users WHERE sso_id IN (:s1, :s2, :s3)"
+            ")"
+        ),
+        {"s1": "student-001", "s2": "student-002", "s3": "student-003"},
+    )
+
+
+
+================================================
+File: migrations/versions/d8497dd06814_update_role_system.py
+================================================
+"""update role-system
+
+Revision ID: d8497dd06814
+Revises: bcacd8abee0d
+Create Date: 2025-06-24 22:43:34.166201
+
+"""
+
+from typing import Sequence, Union
+
+from alembic import op
+import sqlalchemy as sa
+
+
+# revision identifiers, used by Alembic.
+revision: str = "d8497dd06814"
+down_revision: Union[str, None] = "bcacd8abee0d"
+branch_labels: Union[str, Sequence[str], None] = None
+depends_on: Union[str, Sequence[str], None] = None
+
+
+def upgrade():
+    # drop old boolean flag
+    op.drop_column("users", "is_admin")
+
+    # add role column with default 'Student'
+    op.add_column(
+        "users",
+        sa.Column("role", sa.Text(), nullable=False, server_default="Student"),
+    )
+    # enforce only valid values
+    op.create_check_constraint(
+        "chk_users_role",
+        "users",
+        "role IN ('Admin', 'Student', 'Instructor')",
+    )
+
+
+def downgrade():
+    # remove role & re-add is_admin
+    op.drop_constraint("chk_users_role", "users", type_="check")
+    op.drop_column("users", "role")
+    op.add_column(
+        "users",
+        sa.Column("is_admin", sa.Boolean(), nullable=False, server_default="false"),
+    )
+
+
+
+================================================
+File: migrations/versions/daf4585226fb_seed_fake_students.py
+================================================
+"""seed fake students
+
+Revision ID: daf4585226fb
+Revises: 5d90ac5b7342
+Create Date: 2025-06-10 01:26:43.891252
+
+"""
+
+from typing import Sequence, Union
+from alembic import op
+import sqlalchemy as sa
+from sqlalchemy.sql import table, column
+from datetime import datetime, timezone
+import uuid
+
+
+# revision identifiers, used by Alembic.
+revision: str = "daf4585226fb"
+down_revision: Union[str, None] = "5d90ac5b7342"
+branch_labels: Union[str, Sequence[str], None] = None
+depends_on: Union[str, Sequence[str], None] = None
+
+
+def upgrade() -> None:
+    now = datetime.now(timezone.utc)
+
+    user_table = table(
+        "users",
+        column("id"),
+        column("sso_id"),
+        column("name"),
+        column("email"),
+        column("is_admin"),
+        column("created_at"),
+        column("updated_at"),
+    )
+
+    op.bulk_insert(
+        user_table,
+        [
+            {
+                "id": uuid.uuid4(),
+                "sso_id": "student-001",
+                "name": "Alice Example",
+                "email": "alice@example.com",
+                "is_admin": False,
+                "created_at": now,
+                "updated_at": now,
+            },
+            {
+                "id": uuid.uuid4(),
+                "sso_id": "student-002",
+                "name": "Bob Example",
+                "email": "bob@example.com",
+                "is_admin": False,
+                "created_at": now,
+                "updated_at": now,
+            },
+            {
+                "id": uuid.uuid4(),
+                "sso_id": "student-003",
+                "name": "Carol Example",
+                "email": "carol@example.com",
+                "is_admin": False,
+                "created_at": now,
+                "updated_at": now,
+            },
+        ],
+    )
+
+
+def downgrade() -> None:
+    op.execute(
+        sa.text("DELETE FROM users WHERE sso_id IN (:s1, :s2, :s3)"),
+        {"s1": "student-001", "s2": "student-002", "s3": "student-003"},
+    )
+
+
+
+
+================================================
+File: mock_sso/Dockerfile
+================================================
+FROM python:3.11-slim
+
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY app.py .
+
+EXPOSE 80
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "80"]
+
+
+
+
+================================================
+File: mock_sso/app.py
+================================================
+import base64
+import os
+import time
+from uuid import uuid4
+from fastapi import FastAPI, Header, Request, Form, HTTPException, status
+from fastapi.responses import HTMLResponse, RedirectResponse
+from jose import jwt
+
+app = FastAPI()
+
+ISSUER_URL = os.getenv("ISSUER_URL", "http://sso:80")
+CLIENT_ID = os.getenv("CLIENT_ID", "your-client-id")
+CLIENT_SECRET = os.getenv("CLIENT_SECRET", "your-client-secret")
+SECRET_KEY = os.getenv("SECRET_KEY", "dev_sso_secret")
+
+# in-memory: auth code → (nonce, user)
+nonce_store: dict[str, tuple[str, str]] = {}
+
+
+@app.get("/.well-known/openid-configuration")
+def discovery():
+    return {
+        "issuer": ISSUER_URL,
+        "authorization_endpoint": f"http://localhost:8080/authorize",
+        "token_endpoint": f"{ISSUER_URL}/token",
+        "jwks_uri": f"{ISSUER_URL}/jwks",
+        "response_types_supported": ["code"],
+        "grant_types_supported": ["authorization_code"],
+        "scopes_supported": ["openid", "email", "profile"],
+        "id_token_signing_alg_values_supported": ["HS256"],
+    }
+
+
+@app.get("/authorize", response_class=HTMLResponse)
+async def authorize_form(
+    response_type: str,
+    client_id: str,
+    redirect_uri: str,
+    scope: str,
+    state: str,
+    nonce: str,
+):
+    if response_type != "code" or client_id != CLIENT_ID:
+        raise HTTPException(400, "Bad authorize request")
+    return f"""
+    <!DOCTYPE html>
+    <html><head><meta charset="utf-8"><title>Mock SSO</title></head>
+    <body style="text-align:center;font-family:sans-serif;margin-top:50px;">
+      <h1>Mock SSO Login</h1>
+      <form method="post" action="/authorize">
+        <input type="hidden" name="response_type" value="{response_type}"/>
+        <input type="hidden" name="client_id"      value="{client_id}"/>
+        <input type="hidden" name="redirect_uri"   value="{redirect_uri}"/>
+        <input type="hidden" name="state"          value="{state}"/>
+        <input type="hidden" name="nonce"          value="{nonce}"/>
+        <button name="user" value="student-001" style="margin:0 1em;padding:1em 2em;">
+          Login as Student
+        </button>
+        <button name="user" value="admin-001" style="margin:0 1em;padding:1em 2em;">
+          Login as Admin
+        </button>
+      </form>
+    </body>
+    </html>
+    """
+
+
+@app.post("/authorize")
+async def authorize_submit(
+    response_type: str = Form(...),
+    client_id: str = Form(...),
+    redirect_uri: str = Form(...),
+    state: str = Form(...),
+    nonce: str = Form(...),
+    user: str = Form(...),
+):
+    if response_type != "code" or client_id != CLIENT_ID:
+        raise HTTPException(400, "Invalid authorize submission")
+
+    code = uuid4().hex
+    nonce_store[code] = (nonce, user)
+
+    # 302 so browser will GET callback
+    return RedirectResponse(
+        url=f"{redirect_uri}?code={code}&state={state}", status_code=302
+    )
+
+
+@app.post("/token")
+async def token(
+    grant_type: str = Form(...),
+    code: str = Form(...),
+    redirect_uri: str = Form(...),
+    client_id: str = Form(None),
+    client_secret: str = Form(None),
+    authorization: str = Header(None),
+):
+    if authorization and authorization.startswith("Basic "):
+        creds = base64.b64decode(authorization[6:]).decode()
+        client_id, client_secret = creds.split(":", 1)
+
+    if grant_type != "authorization_code" or code not in nonce_store:
+        raise HTTPException(400, "Bad grant or code")
+
+    if client_id != CLIENT_ID or client_secret != CLIENT_SECRET:
+        raise HTTPException(401, "Invalid client credentials")
+
+    nonce, user = nonce_store.pop(code)
+
+    now = int(time.time())
+
+    is_admin = user.startswith("admin-")
+    id_payload = {
+        "iss": ISSUER_URL,
+        "sub": user,
+        "aud": client_id,
+        "exp": now + 3600,
+        "iat": now,
+        "nonce": nonce,
+        "email": f"{user}@example.com",
+        "commonname": "Admin User" if is_admin else "Student User",
+        "group": ["Innopoints_Admins"] if is_admin else [],
+    }
+    id_token = jwt.encode(id_payload, SECRET_KEY, algorithm="HS256")
+
+    return {
+        "access_token": "dev-access-token",
+        "token_type": "Bearer",
+        "expires_in": 3600,
+        "id_token": id_token,
+    }
+
+
+@app.get("/jwks")
+def jwks():
+    k = base64.urlsafe_b64encode(SECRET_KEY.encode()).rstrip(b"=").decode()
+    return {"keys": [{"kty": "oct", "kid": "dev-key", "k": k}]}
+
+
+
+================================================
+File: mock_sso/requirements.txt
+================================================
+fastapi>=0.90.0,<0.95.0
+uvicorn[standard]>=0.20.0,<1.0.0
+python-jose>=3.3.0,<4.0.0
+python-multipart>=0.0.20
+
+
+
+
+================================================
+File: src/README.md
+================================================
+# `src/`
+
+This is the application’s main source directory. It contains:
+
+- **Configuration & bootstrap**  
+  - `config.py`: loads environment variables into a `Settings` object.  
+  - `logging.py`: centralizes logger setup.  
+  - `main.py`: entry point for running with Uvicorn.
+
+- **Layered application code**  
+  - `api/` — HTTP layer (FastAPI routers, Pydantic models).  
+  - `domain/` — core domain model (entities, repository interfaces, exceptions, UoW).  
+  - `infrastructure/` — database, SSO and repository(I would've call them kind of adapters) implementations.  
+  - `services/` — business logic of your app.
+
+Each subdirectory is a “package” that can be swapped or tested in isolation.
+
+
+
+
+
+================================================
+File: src/__init__.py
+================================================
+
+
+
+================================================
+File: src/config.py
+================================================
+import os
+
+
+class Settings:
+    APP_NAME: str = os.getenv("APP_NAME", "elec-api")
+    ENV: str = os.getenv("ENV", "development")  # development|staging|production
+
+    # Database (required)
+    DATABASE_URL: str = os.environ["DATABASE_URL"]
+    SQL_ECHO: bool = os.getenv("SQL_ECHO", "false").lower() in ("1", "true", "yes")
+
+    # JWT (required)
+    JWT_SECRET_KEY: str = os.environ["JWT_SECRET_KEY"]
+    JWT_ALGORITHM: str = os.getenv("JWT_ALGORITHM", "HS256")
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = int(
+        os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60")
+    )
+
+    SSO_CLIENT_ID: str = os.getenv("SSO_CLIENT_ID", "your-client-id")
+    SSO_CLIENT_SECRET: str = os.getenv("SSO_CLIENT_SECRET", "your-client-secret")
+    SSO_DISCOVERY_URL: str = os.getenv(
+        "SSO_DISCOVERY_URL", "http://sso/.well-known/openid-configuration"
+    )
+
+    SESSION_SECRET_KEY: str = os.getenv("SESSION_SECRET_KEY", "some-random-key")
+    FRONTEND_URL: str = os.getenv("FRONTEND_URL", "http://localhost:8501")
+
+
+settings = Settings()
+
+
+
+================================================
+File: src/logging.py
+================================================
+import logging
+
+
+def setup_logging(log_level: str = "INFO"):
+    """
+    Set up the logger for the application.
+    """
+    # Remove all handlers associated with the root logger object.
+    for handler in logging.root.handlers[:]:
+        logging.root.removeHandler(handler)
+
+    logging.basicConfig(
+        format="%(asctime)s,%(msecs)d %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s",
+        datefmt="%Y-%m-%d:%H:%M:%S",
+        level=log_level,
+    )
+
+
+
+================================================
+File: src/main.py
+================================================
+import os
+import uvicorn
+from src.config import settings
+
+if __name__ == "__main__":
+    port = int(os.getenv("PORT", 8000))
+    reload = settings.ENV == "development"
+    uvicorn.run(
+        "src.api.app:app",
+        host="0.0.0.0",
+        port=port,
+        reload=reload,
+    )
+
+
+
+
+================================================
+File: src/api/README.md
+================================================
+# `src/api/`
+
+## Что делает этот слой
+
+- **`app.py`**  
+  - Создаёт экземпляр FastAPI, подключает всё необходимое (роутеры, middleware, шаблоны).  
+  - Регистрирует общий обработчик ошибок для доменных исключений. (Ловим внутренние ошибки и мапим на HTTP-коды)
+
+- **`routers/`**  
+  - Группирует все HTTP-эндпоинты по сущностям:
+    - `auth.py` — весь SSO-флоу (login -> callback -> JWT-куки), не факт что будет работать с iu-sso, но я постарался сделать фейковую версию похожей на нее.  
+    - `users.py` — `GET /users/me` пока что единственный эндпоинт, возвращает инфу по нынешнему пользователю 
+    - `courses.py` — CRUD и импорт курсов. 
+    - `choices.py` — list, replace и delete выборы студента.
+
+Все роутеры можно найти на localhost:8000/docs, когда запустишь систему. Как запускать смотри в главном README
+
+- **`models.py`**  
+  - Pydantic-схемы для валидации входящих и исходящих данных. https://docs.pydantic.dev/latest/ 
+  - Разграничивает «сырые» HTTP-модели от внутренних доменных сущностей.
+
+- **`dependencies.py`**  
+  - Здесь описаны зависимости FastAPI (пока что только `get_uow` для UnitOfWork).
+
+- **`error_handler.py`**  
+  - Переводит доменные исключения (`AppError`) в понятные HTTP-коды (404, 400, 403…). (О чем писал выше)
+
+
+
+
+================================================
+File: src/api/__init__.py
+================================================
+
+
+
+================================================
+File: src/api/app.py
+================================================
+from fastapi import FastAPI, Request, status
+from fastapi.responses import JSONResponse
+from src.config import settings
+from src.domain.exceptions import AppError
+from src.logging import setup_logging
+from src.api.routers import auth_router, users_router, courses_router, choices_router
+from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.sessions import SessionMiddleware
+
+from src.api.error_handler import code_map
+
+
+def create_app() -> FastAPI:
+    setup_logging()
+
+    app = FastAPI(title=settings.APP_NAME, openapi_prefix="/api")
+
+    @app.exception_handler(AppError)
+    async def app_error_handler(request: Request, exc: AppError):
+        status_code = code_map.get(type(exc), status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return JSONResponse(status_code=status_code, content={"detail": str(exc)})
+
+    app.add_middleware(
+        SessionMiddleware,
+        secret_key=settings.SESSION_SECRET_KEY,
+        session_cookie="session",
+        max_age=14 * 24 * 3600,
+        same_site="lax",
+    )
+
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=[settings.FRONTEND_URL],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+    app.include_router(auth_router, prefix="/auth", tags=["auth"])
+    app.include_router(users_router, prefix="/users", tags=["users"])
+    app.include_router(courses_router, prefix="/courses", tags=["courses"])
+    app.include_router(choices_router, prefix="/choices", tags=["choices"])
+
+    return app
+
+
+app = create_app()
+
+
+
+================================================
+File: src/api/dependencies.py
+================================================
+from src.infrastructure.db.uow import UnitOfWork
+
+
+def get_uow():
+    return UnitOfWork()
+
+
+
+================================================
+File: src/api/error_handler.py
+================================================
+from fastapi import status
+from src.domain.exceptions import (
+    ChoiceNotFoundError,
+    CourseNotFoundError,
+    DuplicateChoiceError,
+    DuplicateCourseCodeError,
+    UserNotFoundError,
+    AdminRequiredError,
+)
+
+
+code_map = {
+    DuplicateCourseCodeError: status.HTTP_400_BAD_REQUEST,
+    UserNotFoundError: status.HTTP_404_NOT_FOUND,
+    AdminRequiredError: status.HTTP_403_FORBIDDEN,
+    CourseNotFoundError: status.HTTP_404_NOT_FOUND,
+    ChoiceNotFoundError: status.HTTP_404_NOT_FOUND,
+    DuplicateChoiceError: status.HTTP_400_BAD_REQUEST,
+}
+
+
+
+================================================
+File: src/api/models.py
+================================================
+from pydantic import BaseModel, Field
+from datetime import datetime
+from uuid import UUID
+from typing import Optional, List
+from pydantic import BaseModel
+
+
+class UserResponse(BaseModel):
+    sub: str
+    email: str
+    name: str
+    role: str
+
+
+class CourseCreateRequest(BaseModel):
+    code: str
+    title: str
+    description: str
+    max_seats: int
+
+
+class CourseResponse(BaseModel):
+    id: UUID
+    code: str
+    title: str
+    description: Optional[str]
+    max_seats: int
+    created_at: datetime
+    updated_at: datetime
+
+
+class SkippedCourse(BaseModel):
+    input: CourseCreateRequest
+    existing: CourseResponse
+
+
+class ImportCoursesReport(BaseModel):
+    imported: List[CourseResponse]
+    skipped: List[SkippedCourse]
+
+
+class ChoiceItem(BaseModel):
+    priority: int = Field(..., description="Priority of the choice")
+    course_id: UUID = Field(..., description="UUID of the selected course")
+
+    class Config:
+        schema_extra = {
+            "example": {
+                "priority": 1,
+                "course_id": "550e8400-e29b-41d4-a716-446655440000",
+            }
+        }
+
+
+
+================================================
+File: src/api/routers/__init__.py
+================================================
+from .auth import router as auth_router
+from .choices import router as choices_router
+from .users import router as users_router
+from .courses import router as courses_router
+
+__all__ = ["users_router", "choices_router", "auth_router", "courses_router"]
+
+
+
+================================================
+File: src/api/routers/auth.py
+================================================
+import logging
+from uuid import UUID
+
+import jwt
+from fastapi import APIRouter, Depends, Request, HTTPException, Response, status
+from fastapi.responses import RedirectResponse
+from authlib.integrations.starlette_client import OAuthError
+
+from src.api.dependencies import get_uow
+from src.api.models import UserResponse
+from src.infrastructure.sso.innopolis_oidc import oauth
+from src.services.user_service import UserService
+from src.config import settings
+
+router = APIRouter(tags=["auth"])
+
+
+@router.post("/logout", status_code=204)
+def logout(response: Response):
+    """
+    Clear the access_token cookie to log out the user.
+    """
+    response.delete_cookie(
+        key="access_token",
+        path="/",
+        # same flags as when you set it:
+        httponly=True,
+        secure=(settings.ENV == "production"),
+        samesite="lax",
+    )
+    return Response(status_code=204)
+
+
+@router.get("/login")
+async def login(request: Request):
+    """
+    Redirect the user to the Innopolis SSO authorization endpoint.
+    """
+    redirect_uri = request.url_for("auth_callback")
+    return await oauth.innopolis_sso.authorize_redirect(request, redirect_uri)  # type: ignore
+
+
+@router.get("/callback")
+async def auth_callback(
+    request: Request,
+    user_service: UserService = Depends(),
+    uow=Depends(get_uow),
+):
+    """
+    Handle the OIDC callback.
+    """
+    try:
+        token = await oauth.innopolis_sso.authorize_access_token(request)  # type: ignore
+        userinfo = token.get("userinfo") or {}
+        if not userinfo and token.get("id_token"):
+            userinfo = await oauth.innopolis_sso.parse_id_token(request, token)  # type: ignore
+        if not userinfo:
+            userinfo = await oauth.innopolis_sso.userinfo(request, token)  # type: ignore
+    except OAuthError as err:
+        logging.error("SSO login failed: %s", err)
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "SSO login failed")
+
+    sub = userinfo["sub"]
+    email = userinfo.get("email", "")
+    name = userinfo.get("name") or userinfo.get("commonname") or ""
+    role = "Admin" if "Innopoints_Admins" in userinfo.get("group", []) else "Student"
+
+    user = user_service.register_sso(
+        sso_id=sub, name=name, email=email, role=role, uow=uow
+    )
+
+    access_token = user_service.create_access_token(user)
+    resp = RedirectResponse(settings.FRONTEND_URL, status_code=status.HTTP_302_FOUND)
+    resp.set_cookie(
+        key="access_token",
+        value=access_token,
+        httponly=True,
+        secure=(settings.ENV == "production"),
+        max_age=60 * settings.ACCESS_TOKEN_EXPIRE_MINUTES,
+        samesite="lax",
+    )
+    return resp
+
+
+def get_current_user(
+    request: Request,
+    uow=Depends(get_uow),
+) -> UserResponse:
+    token = request.cookies.get("access_token")
+    if not token:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Not authenticated")
+
+    try:
+        payload = jwt.decode(
+            token,
+            settings.JWT_SECRET_KEY,
+            algorithms=[settings.JWT_ALGORITHM],
+        )
+    except jwt.PyJWTError:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid token")
+
+    user_id = UUID(payload["sub"])
+    with uow:
+        user = uow.users.get(user_id)
+    if not user:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "User not found")
+
+    return UserResponse(
+        sub=str(user.id),
+        email=user.email,
+        name=user.name,
+        role=user.role,
+    )
+
+
+def require_roles(*allowed: str):
+    """
+    Dependency factory: e.g. dependencies=[require_roles("Admin","Instructor")]
+    """
+
+    def _checker(user: UserResponse = Depends(get_current_user)):
+        if user.role not in allowed:
+            raise HTTPException(status.HTTP_403_FORBIDDEN, "Forbidden")
+        return user
+
+    return Depends(_checker)
+
+
+# convenience aliases
+require_admin = require_roles("Admin")
+require_student = require_roles("Student")
+require_instructor = require_roles("Instructor")
+
+
+
+================================================
+File: src/api/routers/choices.py
+================================================
+from typing import List
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, Body, status, Path
+
+from src.api.models import ChoiceItem, UserResponse
+from src.api.routers.auth import get_current_user
+from src.api.dependencies import get_uow
+from src.services.choice_service import ChoiceService
+
+router = APIRouter(prefix="/choices", tags=["choices"])
+
+
+@router.get("/", response_model=List[ChoiceItem])
+async def list_choices(
+    user: UserResponse = Depends(get_current_user),
+    svc: ChoiceService = Depends(ChoiceService),
+    uow=Depends(get_uow),
+):
+    """Return this student’s choices, ordered by priority ascending."""
+    user_id = UUID(user.sub)
+    choices = svc.list_user_choices(user_id, uow)
+    return [
+        ChoiceItem(priority=choice.priority, course_id=choice.course_id)
+        for choice in choices
+    ]
+
+
+@router.post(
+    "/",
+    response_model=List[ChoiceItem],
+    status_code=status.HTTP_200_OK,
+    summary="Replace all choices by ordered list of course IDs",
+)
+async def replace_choices(
+    course_ids: List[UUID] = Body(
+        ...,
+        description="Ordered list of course UUIDs (first = priority 1, next = 2, …)",
+        example=[
+            "ed51f07e-afb5-4c9e-ba6e-150869922073",
+            "fc2dcd26-3b69-4fdd-ad30-c0f1a7c4b595",
+        ],
+    ),
+    user: UserResponse = Depends(get_current_user),
+    svc: ChoiceService = Depends(ChoiceService),
+    uow=Depends(get_uow),
+):
+    user_id = UUID(user.sub)
+    created = svc.replace_user_choices(user_id=user_id, course_ids=course_ids, uow=uow)
+
+    return [
+        ChoiceItem(priority=choice.priority, course_id=choice.course_id)
+        for choice in created
+    ]
+
+
+@router.delete(
+    "/{priority}",
+    response_model=List[ChoiceItem],
+    status_code=status.HTTP_200_OK,
+    summary="Remove one choice by priority",
+)
+async def delete_choice(
+    priority: int = Path(..., ge=1),
+    user: UserResponse = Depends(get_current_user),
+    svc: ChoiceService = Depends(ChoiceService),
+    uow=Depends(get_uow),
+):
+    """
+    Deletes the choice at `priority` and shifts lower priorities up.
+    """
+    user_id = UUID(user.sub)
+    updated = svc.remove_choice(user_id=user_id, priority=priority, uow=uow)
+
+    return [ChoiceItem(priority=c.priority, course_id=c.course_id) for c in updated]
+
+
+
+================================================
+File: src/api/routers/courses.py
+================================================
+from typing import Any, Dict, List
+from uuid import UUID
+import csv
+import io
+
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    HTTPException,
+    Request,
+    UploadFile,
+    status,
+)
+from src.api.models import (
+    CourseCreateRequest,
+    CourseResponse,
+    ImportCoursesReport,
+    SkippedCourse,
+)
+from src.api.routers.auth import get_current_user, require_admin
+from src.domain.unit_of_work import AbstractUnitOfWork
+from src.services.course_service import CourseService
+from src.api.dependencies import get_uow
+
+router = APIRouter(prefix="/courses", tags=["courses"])
+
+
+@router.get("/", response_model=List[CourseResponse])
+async def list_courses(
+    request: Request,
+    course_service: CourseService = Depends(),
+    uow: AbstractUnitOfWork = Depends(get_uow),
+):
+    return course_service.list_courses(uow=uow)
+
+
+@router.get("/{course_id}", response_model=CourseResponse)
+async def get_course(
+    course_id: UUID,
+    course_service: CourseService = Depends(),
+    uow: AbstractUnitOfWork = Depends(get_uow),
+):
+    course = course_service.get_course(course_id, uow)
+    if not course:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Course not found")
+    return course
+
+
+@router.put(
+    "/{course_id}",
+    response_model=CourseResponse,
+    dependencies=[require_admin],
+)
+async def update_course(
+    course_id: UUID,
+    payload: CourseCreateRequest,
+    course_service: CourseService = Depends(),
+    uow: AbstractUnitOfWork = Depends(get_uow),
+):
+    updated = course_service.update_course(course_id, **payload.model_dump(), uow=uow)
+    if not updated:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Course not found")
+    return updated
+
+
+@router.delete(
+    "/{course_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[require_admin],
+)
+async def delete_course(
+    course_id: UUID,
+    course_service: CourseService = Depends(),
+    uow: AbstractUnitOfWork = Depends(get_uow),
+):
+    if not course_service.delete_course(course_id, uow):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Course not found")
+
+
+@router.delete(
+    "/",
+    dependencies=[require_admin],
+    response_model=Dict[str, int],
+)
+async def delete_all_courses(
+    course_service: CourseService = Depends(),
+    uow: AbstractUnitOfWork = Depends(get_uow),
+):
+    count = course_service.delete_all_courses(uow)
+    return {"deleted": count}
+
+
+@router.post(
+    "/from_file",
+    response_model=ImportCoursesReport,
+    dependencies=[require_admin],
+)
+async def import_courses_from_file(
+    file: UploadFile = File(...),
+    course_service: CourseService = Depends(),
+    uow: AbstractUnitOfWork = Depends(get_uow),
+):
+    raw = await file.read()
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError:
+        raise HTTPException(400, "File must be UTF-8 encoded")
+
+    reader = csv.DictReader(io.StringIO(text))
+    courses_data: List[Dict[str, Any]] = []
+    for row in reader:
+        try:
+            row["max_seats"] = int(row["max_seats"])
+        except Exception as e:
+            raise HTTPException(422, f"Invalid data in CSV row: {e}")
+        courses_data.append(row)
+
+    if not courses_data:
+        raise HTTPException(400, "No course records found in file")
+
+    # perform the import inside a unit of work
+    imported, skipped = course_service.import_courses(courses_data, uow=uow)
+
+    imported_out = [CourseResponse(**c.model_dump()) for c in imported]
+    skipped_out = [
+        SkippedCourse(
+            input=CourseCreateRequest(**inp),
+            existing=CourseResponse(**existing.model_dump()),
+        )
+        for inp, existing in skipped
+    ]
+
+    return ImportCoursesReport(imported=imported_out, skipped=skipped_out)
+
+
+
+================================================
+File: src/api/routers/users.py
+================================================
+from fastapi import APIRouter, Depends
+from src.api.models import UserResponse
+
+from .auth import get_current_user
+
+router = APIRouter()
+
+
+@router.get("/me", response_model=UserResponse)
+async def me(user: UserResponse = Depends(get_current_user)):
+    """
+    Returns the current logged-in user, or 401 if not authenticated.
+    """
+    return user
+
+
+
+================================================
+File: src/domain/README.md
+================================================
+# `src/domain/`
+
+## Что делает этот слой
+- **Entities (сущности)**  
+  Описывают основные объекты нашей предметной области, просто какие данные хранятся и как с ними взаимодействовать. Упрощает читабельность кода, да и дебажить проще, когда знаешь, что функция должна возвращать:
+  - `User` — пользователь системы.  
+  - `Course` — курс-электив.  
+  - `Choice` — выбор курса студентом (один {приоритет:id_курса:id_студента}).
+
+- **Repositories** 
+  Абстракции (интерфейсы) для операций создания, чтения, обновления и удаления (`CRUD`).  
+  Они не содержат кода SQL/ORM — только сигнатуры методов, чтобы можно было легче поменять фреймворк если захочется, да и suggestion-ы удобно:
+  ```python
+  class AbstractCourseRepository(ABC):
+      def add(self, course: Course) -> None: ...
+      def get(self, course_id: UUID) -> Optional[Course]: ...
+      def list(self) -> List[Course]: ...
+      ...
+
+- **Unit of Work (UoW)**
+Паттерн, гарантирующий атомарность и консистентность операций:
+    - __enter__ начинает транзакцию.
+    - сервис выполняет какие-то операций над репозиториями. (Пишет что-то в бд)
+    - __exit__ автоматически коммитит изменения, если не было исключений, или откатывает их при ошибке.
+
+    Крутая штука чтобы иметь, т.к. позволяет не париться, если ошибка возникает посреди записи в бд.
+    как юзать можешь глянуть в сервисах
+
+- **Exceptions (исключения)**
+Кастомные ошибки, чтобы можно было лего их отлавливать и конвертировать в http. FastAPI это делает автоматом, но тебе если новые будешь добавлять - не забудь обновить api/error_handler
+
+Домен не знает ничего про sso, бд и апи. Он знает про то, как **логически** работает система. Какие методы есть у адаптеров в внешний мир и как они между собой взаимосвязаны, но не знает их конкретную реализацию. Домену все равно какую ты технологию используешь. Для бд например ты можешь переключиться на sqlite и не менять ни сервисы, ни доменые модели. Они остануться точно такими же, и все изменения будут лишь в инфраструктуре
+
+
+
+================================================
+File: src/domain/__init__.py
+================================================
+
+
+
+================================================
+File: src/domain/exceptions.py
+================================================
+class AppError(Exception):
+    """Base-class for every application-level exception."""
+
+
+# --- Auth ---
+class NotAuthenticatedError(AppError):
+    """No valid session / JWT supplied."""
+
+
+class AdminRequiredError(AppError):
+    """Caller must be an administrator."""
+
+
+# --- Users ---
+class UserNotFoundError(AppError):
+    """User could not be located."""
+
+
+# --- Courses ---
+class DuplicateCourseCodeError(AppError):
+    """A course with the same code already exists."""
+
+
+class CourseNotFoundError(AppError):
+    """Referenced course could not be found."""
+
+
+# --- Choices ---
+class DuplicateChoiceError(AppError):
+    """User already has that course selected."""
+
+
+class ChoiceNotFoundError(AppError):
+    """No choice exists at the requested priority."""
+
+
+
+================================================
+File: src/domain/unit_of_work.py
+================================================
+from abc import ABC, abstractmethod
+from typing import Optional, Type, Any
+
+from src.domain.repositories import (
+    AbstractUserRepository,
+    AbstractCourseRepository,
+    AbstractChoiceRepository,
+)
+
+
+class AbstractUnitOfWork(ABC):
+    users: AbstractUserRepository
+    courses: AbstractCourseRepository
+    choices: AbstractChoiceRepository
+
+    def __enter__(self) -> "AbstractUnitOfWork":
+        """
+        Begin a transaction.
+        """
+        return self
+
+    def __exit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[Any],
+    ) -> None:
+        """
+        On exit, commit if no exception, else rollback.
+        """
+        if exc_type:
+            self.rollback()
+        else:
+            self._commit()
+
+    @abstractmethod
+    def _commit(self) -> None:
+        """Persist all changes."""
+        ...
+
+    @abstractmethod
+    def rollback(self) -> None:
+        """Revert all changes."""
+        ...
+
+
+
+================================================
+File: src/domain/entities/__init__.py
+================================================
+from .user import User
+from .course import Course
+from .choice import Choice
+
+__all__ = ["User", "Course", "Choice"]
+
+
+
+================================================
+File: src/domain/entities/choice.py
+================================================
+from datetime import datetime
+from uuid import UUID
+
+from pydantic import BaseModel
+
+
+class Choice(BaseModel):
+    """
+    A student's prioritized selection of a course.
+    """
+
+    id: UUID
+    user_id: UUID
+    course_id: UUID
+    priority: int
+    created_at: datetime
+    updated_at: datetime
+
+
+
+================================================
+File: src/domain/entities/course.py
+================================================
+from datetime import datetime
+from uuid import UUID
+from typing import Optional
+
+from pydantic import BaseModel
+
+
+class Course(BaseModel):
+    """
+    An elective course in the catalog.
+    """
+
+    id: UUID
+    code: str
+    title: str
+    description: Optional[str]
+    max_seats: int
+    created_at: datetime
+    updated_at: datetime
+
+
+
+================================================
+File: src/domain/entities/user.py
+================================================
+from datetime import datetime
+from uuid import UUID
+
+from pydantic import BaseModel
+
+
+class User(BaseModel):
+    id: UUID
+    sso_id: str
+    name: str
+    email: str
+    role: str
+    created_at: datetime
+    updated_at: datetime
+
+
+
+================================================
+File: src/domain/repositories/__init__.py
+================================================
+from .abstract_user_repository import AbstractUserRepository
+from .abstract_course_repository import AbstractCourseRepository
+from .abstract_choice_repository import AbstractChoiceRepository
+
+__all__ = [
+    "AbstractUserRepository",
+    "AbstractCourseRepository",
+    "AbstractChoiceRepository",
+]
+
+
+
+================================================
+File: src/domain/repositories/abstract_choice_repository.py
+================================================
+from abc import ABC, abstractmethod
+from typing import List, Optional
+from uuid import UUID
+from src.domain.entities.choice import Choice
+
+
+class AbstractChoiceRepository(ABC):
+    """Interface for Choice persistence."""
+
+    @abstractmethod
+    def add(self, choice: Choice) -> None:
+        """Insert a new Choice."""
+        ...
+
+    @abstractmethod
+    def update(self, choice: Choice) -> None:
+        """Persist changes to an existing Choice."""
+        ...
+
+    @abstractmethod
+    def get(self, choice_id: UUID) -> Optional[Choice]:
+        """Fetch a Choice by its UUID."""
+        ...
+
+    @abstractmethod
+    def list(self) -> List[Choice]:
+        """Return all Choices."""
+        ...
+
+    @abstractmethod
+    def list_by_user(self, user_id: UUID) -> List[Choice]:
+        """Return all Choices for a given user (ordered by priority)."""
+        ...
+
+    @abstractmethod
+    def list_by_course(self, course_id: UUID) -> List[Choice]:
+        """Return all Choices for a given course."""
+        ...
+
+    @abstractmethod
+    def delete(self, choice_id: UUID) -> None:
+        """Remove a Choice by its UUID."""
+        ...
+
+
+
+================================================
+File: src/domain/repositories/abstract_course_repository.py
+================================================
+from abc import ABC, abstractmethod
+from typing import Optional, List
+from uuid import UUID
+from src.domain.entities.course import Course
+
+
+class AbstractCourseRepository(ABC):
+    """Interface for Course persistence."""
+
+    @abstractmethod
+    def add(self, course: Course) -> None:
+        """Insert a new Course."""
+        ...
+
+    @abstractmethod
+    def get(self, course_id: UUID) -> Optional[Course]:
+        """Fetch a Course by its UUID."""
+        ...
+
+    @abstractmethod
+    def get_by_code(self, code: str) -> Optional[Course]:
+        """Fetch a Course by its unique code."""
+        ...
+
+    @abstractmethod
+    def list(self) -> List[Course]:
+        """Return all Courses."""
+        ...
+
+    @abstractmethod
+    def update(self, course: Course) -> None:
+        """Persist changes to an existing Course."""
+        ...
+
+    @abstractmethod
+    def delete(self, course_id: UUID) -> None:
+        """Remove a Course by its UUID."""
+        ...
+
+
+
+================================================
+File: src/domain/repositories/abstract_user_repository.py
+================================================
+from abc import ABC, abstractmethod
+from typing import Optional, List
+from uuid import UUID
+from src.domain.entities.user import User
+
+
+class AbstractUserRepository(ABC):
+    """Interface for User persistence."""
+
+    @abstractmethod
+    def add(self, user: User) -> None:
+        """Insert a new User."""
+        ...
+
+    @abstractmethod
+    def get(self, user_id: UUID) -> Optional[User]:
+        """Fetch a User by its UUID."""
+        ...
+
+    @abstractmethod
+    def get_by_sso_id(self, sso_id: str) -> Optional[User]:
+        """Fetch a User by their SSO identifier."""
+        ...
+
+    @abstractmethod
+    def get_by_email(self, email: str) -> Optional[User]:
+        """Fetch a User by email address."""
+        ...
+
+    @abstractmethod
+    def list(self) -> List[User]:
+        """Return all Users."""
+        ...
+
+    @abstractmethod
+    def update(self, user: User) -> None:
+        """Persist changes to an existing User."""
+        ...
+
+
+
+================================================
+File: src/infrastructure/README.md
+================================================
+# `src/infrastructure/`
+
+Слой **Infrastructure** отвечает за все внешние взаимодействия приложения: работу с базой данных и интеграцию со сторонними сервисами (SSO в нашем случае). Он реализует абстракции из доменного слоя.
+
+---
+
+## Поддиректории
+
+### `db/`  
+Всё, что связано с базой данных (PostgreSQL + SQLAlchemy у нас):
+
+- **`models.py`**  
+  ORM-модели (`UserModel`, `CourseModel`, `ChoiceModel`), описывающие таблицы и связи.  
+  Соответствуют Alembic-миграциям в `migrations/`.
+
+- **`session.py`**  
+  Создаёт фабрику сессий, позволяет просто и быстро подключаться к бд, особенно хорошо работает в unit_of_work, можешь глянуть там применение.  
+
+- **`uow.py`**  
+  Реализация паттерна **Unit of Work**:  
+  1. В `__enter__` создаётся новая сессия и репозитории.  
+  2. В `__exit__` — коммит или откат + закрытие сессии.  
+  Гарантирует атомарность транзакций.
+
+- **`repositories/`**  
+  Конкретные реализации интерфейсов из `domain/repositories` на SQLAlchemy:  
+  - `SqlAlchemyUserRepo`  
+  - `SqlAlchemyCourseRepo`  
+  - `SqlAlchemyChoiceRepo`  
+  Преобразуют ORM-модели в доменные сущности (`User`, `Course`, `Choice`).
+
+### `sso/`  
+Ну тут сложно просто описать, почитай про, то как работает sso и oidc
+
+- **`innopolis_oidc.py`**  
+  Настройка Authlib OAuth-клиента для Innopolis SSO:  
+  - Загружает `SSO_DISCOVERY_URL`, `CLIENT_ID`, `CLIENT_SECRET` из конфига.  
+  - Регистрирует провайдер `innopolis_sso` в `oauth`.
+Стырил из Innopoints-backend, надо будет поконсультироваться с разрабами, чьи контакты дали
+
+---
+
+## Зачем нужен Infrastructure
+
+1. **Отделение реализации интерфейсов от домена**  
+   Доменные сервисы и логика **не зависят** от конкретных технологий БД или SSO.
+
+2. **Замена реализаций без переписывания логики**  
+   При необходимости можно подключить другую БД, репозиторий или провайдера SSO, ничего не меняя в `domain/` и `services/`.
+
+3. **Тестируемость**  
+    Для юнит-тестов можно подменить UnitOfWork и репозитории на моки или in-memory реализации, но т.к. я ленивая жепка я не писал тесты :D
+
+
+
+
+================================================
+File: src/infrastructure/__init__.py
+================================================
+
+
+
+
+================================================
+File: src/infrastructure/db/__init__.py
+================================================
+
+
+
+================================================
+File: src/infrastructure/db/models.py
+================================================
+from uuid import uuid4
+from datetime import datetime, timezone
+from sqlalchemy import (
+    Column,
+    String,
+    Text,
+    Integer,
+    DateTime,
+    SmallInteger,
+    CheckConstraint,
+    UniqueConstraint,
+    ForeignKey,
+)
+from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import relationship
+
+Base = declarative_base()
+
+
+class UserModel(Base):
+    __tablename__ = "users"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    sso_id = Column(Text, nullable=False, unique=True, index=True)
+    name = Column(Text, nullable=False)
+    email = Column(Text, nullable=False, unique=True, index=True)
+
+    # Single role field
+    role = Column(Text, nullable=False, default="Student")
+    __table_args__ = (
+        CheckConstraint(
+            "role IN ('Admin', 'Student', 'Instructor')",
+            name="chk_users_role",
+        ),
+    )
+
+    created_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+    )
+    updated_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+    )
+
+    choices = relationship("ChoiceModel", back_populates="user")
+
+
+class CourseModel(Base):
+    __tablename__ = "courses"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    code = Column(Text, nullable=False, unique=True, index=True)
+    title = Column(Text, nullable=False)
+    description = Column(Text)
+    max_seats = Column(Integer, nullable=False, default=0)
+
+    created_at = Column(
+        DateTime(timezone=True), nullable=False, default=datetime.now(timezone.utc)
+    )
+    updated_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=datetime.now(timezone.utc),
+        onupdate=datetime.now(timezone.utc),
+    )
+
+    choices = relationship("ChoiceModel", back_populates="course")
+
+
+class ChoiceModel(Base):
+    __tablename__ = "choices"
+    __table_args__ = (
+        UniqueConstraint("user_id", "course_id", name="uq_user_course"),
+        UniqueConstraint("user_id", "priority", name="uq_user_priority"),
+        CheckConstraint("priority BETWEEN 1 AND 5", name="chk_priority_range"),
+    )
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    user_id = Column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    course_id = Column(
+        UUID(as_uuid=True), ForeignKey("courses.id", ondelete="CASCADE"), nullable=False
+    )
+    priority = Column(SmallInteger, nullable=False)
+    created_at = Column(
+        DateTime(timezone=True), nullable=False, default=datetime.now(timezone.utc)
+    )
+    updated_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=datetime.now(timezone.utc),
+        onupdate=datetime.now(timezone.utc),
+    )
+
+    user = relationship("UserModel", back_populates="choices")
+    course = relationship("CourseModel", back_populates="choices")
+
+
+
+================================================
+File: src/infrastructure/db/session.py
+================================================
+import os
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker, Session
+
+from src.config import settings
+
+engine = create_engine(
+    settings.DATABASE_URL,
+    echo=settings.SQL_ECHO,
+    pool_pre_ping=True,
+)
+
+SessionLocal = sessionmaker(
+    autocommit=False,
+    autoflush=False,
+    bind=engine,
+)
+
+
+def create_session() -> Session:
+    """Factory for a new SQLAlchemy Session (used by the UoW)."""
+    return SessionLocal()
+
+
+def get_db_session():
+    """
+    FastAPI dependency: yields a session and closes it afterwards.
+    Usage in routers: db: Session = Depends(get_db)
+    """
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+
+================================================
+File: src/infrastructure/db/uow.py
+================================================
+from typing import Optional, Type, Any
+from src.domain.unit_of_work import AbstractUnitOfWork
+from src.infrastructure.db.session import create_session
+
+from src.infrastructure.db.repositories import (
+    SqlAlchemyUserRepo,
+    SqlAlchemyCourseRepo,
+    SqlAlchemyChoiceRepo,
+)
+
+
+class UnitOfWork(AbstractUnitOfWork):
+    """
+    SQLAlchemy-backed UoW. Creates a new Session on enter,
+    provides repo implementations, and handles commit/rollback.
+    """
+
+    def __enter__(self) -> "UnitOfWork":
+        self.session = create_session()
+        self.users = SqlAlchemyUserRepo(self.session)
+        self.courses = SqlAlchemyCourseRepo(self.session)
+        self.choices = SqlAlchemyChoiceRepo(self.session)
+        return self
+
+    def _commit(self) -> None:
+        self.session.commit()
+
+    def rollback(self) -> None:
+        self.session.rollback()
+
+    def __exit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[Any],
+    ) -> None:
+        super().__exit__(exc_type, exc_val, exc_tb)
+        self.session.close()
+
+
+
+
+================================================
+File: src/infrastructure/db/repositories/__init__.py
+================================================
+from .choice_repo import SqlAlchemyChoiceRepo
+from .course_repo import SqlAlchemyCourseRepo
+from .user_repo import SqlAlchemyUserRepo
+
+__all__ = ["SqlAlchemyUserRepo", "SqlAlchemyCourseRepo", "SqlAlchemyChoiceRepo"]
+
+
+
+================================================
+File: src/infrastructure/db/repositories/choice_repo.py
+================================================
+from typing import List, Optional, cast
+from uuid import UUID
+from datetime import datetime, timezone
+from sqlalchemy.orm import Session
+
+from src.domain.repositories import AbstractChoiceRepository
+from src.domain.entities.choice import Choice
+from src.infrastructure.db.models import ChoiceModel
+
+
+class SqlAlchemyChoiceRepo(AbstractChoiceRepository):
+    def __init__(self, session: Session):
+        self.session = session
+
+    def add(self, choice: Choice) -> None:
+        model = ChoiceModel(
+            id=choice.id,
+            user_id=choice.user_id,
+            course_id=choice.course_id,
+            priority=choice.priority,
+            created_at=choice.created_at,
+            updated_at=choice.updated_at,
+        )
+        self.session.add(model)
+
+    def update(self, choice: Choice) -> None:
+        m = self.session.query(ChoiceModel).filter_by(id=choice.id).one()
+        m.priority = choice.priority  # type: ignore
+        m.updated_at = datetime.now(timezone.utc)  # type: ignore
+
+    def get(self, choice_id: UUID) -> Optional[Choice]:
+        m = self.session.query(ChoiceModel).filter_by(id=choice_id).one_or_none()
+        if m is None:
+            return None
+        return Choice(
+            id=cast(UUID, m.id),
+            user_id=cast(UUID, m.user_id),
+            course_id=cast(UUID, m.course_id),
+            priority=cast(int, m.priority),
+            created_at=cast(datetime, m.created_at),
+            updated_at=cast(datetime, m.updated_at),
+        )
+
+    def list(self) -> List[Choice]:
+        models = self.session.query(ChoiceModel).all()
+        return [
+            Choice(
+                id=cast(UUID, m.id),
+                user_id=cast(UUID, m.user_id),
+                course_id=cast(UUID, m.course_id),
+                priority=cast(int, m.priority),
+                created_at=cast(datetime, m.created_at),
+                updated_at=cast(datetime, m.updated_at),
+            )
+            for m in models
+        ]
+
+    def list_by_user(self, user_id: UUID) -> List[Choice]:
+        models = (
+            self.session.query(ChoiceModel)
+            .filter_by(user_id=user_id)
+            .order_by(ChoiceModel.priority)
+            .all()
+        )
+        return [
+            Choice(
+                id=cast(UUID, m.id),
+                user_id=cast(UUID, m.user_id),
+                course_id=cast(UUID, m.course_id),
+                priority=cast(int, m.priority),
+                created_at=cast(datetime, m.created_at),
+                updated_at=cast(datetime, m.updated_at),
+            )
+            for m in models
+        ]
+
+    def list_by_course(self, course_id: UUID) -> List[Choice]:
+        models = self.session.query(ChoiceModel).filter_by(course_id=course_id).all()
+        return [
+            Choice(
+                id=cast(UUID, m.id),
+                user_id=cast(UUID, m.user_id),
+                course_id=cast(UUID, m.course_id),
+                priority=cast(int, m.priority),
+                created_at=cast(datetime, m.created_at),
+                updated_at=cast(datetime, m.updated_at),
+            )
+            for m in models
+        ]
+
+    def delete(self, choice_id: UUID) -> None:
+        self.session.query(ChoiceModel).filter_by(id=choice_id).delete(
+            synchronize_session=False
+        )
+
+
+
+================================================
+File: src/infrastructure/db/repositories/course_repo.py
+================================================
+from typing import Optional, List, cast
+from uuid import UUID
+from datetime import datetime
+from sqlalchemy.orm import Session
+
+from src.domain.repositories import AbstractCourseRepository
+from src.domain.entities.course import Course
+from src.infrastructure.db.models import CourseModel
+
+
+class SqlAlchemyCourseRepo(AbstractCourseRepository):
+    def __init__(self, session: Session):
+        self.session = session
+
+    def add(self, course: Course) -> None:
+        model = CourseModel(
+            id=course.id,
+            code=course.code,
+            title=course.title,
+            description=course.description,
+            max_seats=course.max_seats,
+            created_at=course.created_at,
+            updated_at=course.updated_at,
+        )
+        self.session.add(model)
+
+    def get(self, course_id: UUID) -> Optional[Course]:
+        m = self.session.query(CourseModel).filter_by(id=course_id).one_or_none()
+        if m is None:
+            return None
+        return Course(
+            id=cast(UUID, m.id),
+            code=cast(str, m.code),
+            title=cast(str, m.title),
+            description=cast(Optional[str], m.description),
+            max_seats=cast(int, m.max_seats),
+            created_at=cast(datetime, m.created_at),
+            updated_at=cast(datetime, m.updated_at),
+        )
+
+    def get_by_code(self, code: str) -> Optional[Course]:
+        m = self.session.query(CourseModel).filter_by(code=code).one_or_none()
+        if m is None:
+            return None
+        return Course(
+            id=cast(UUID, m.id),
+            code=cast(str, m.code),
+            title=cast(str, m.title),
+            description=cast(Optional[str], m.description),
+            max_seats=cast(int, m.max_seats),
+            created_at=cast(datetime, m.created_at),
+            updated_at=cast(datetime, m.updated_at),
+        )
+
+    def list(self) -> List[Course]:
+        models = self.session.query(CourseModel).all()
+        return [
+            Course(
+                id=cast(UUID, m.id),
+                code=cast(str, m.code),
+                title=cast(str, m.title),
+                description=cast(Optional[str], m.description),
+                max_seats=cast(int, m.max_seats),
+                created_at=cast(datetime, m.created_at),
+                updated_at=cast(datetime, m.updated_at),
+            )
+            for m in models
+        ]
+
+    def update(self, course: Course) -> None:
+        m = self.session.query(CourseModel).filter_by(id=course.id).one()
+        for attr in ("code", "title", "description", "max_seats", "updated_at"):
+            setattr(m, attr, getattr(course, attr))
+
+    def delete(self, course_id: UUID) -> None:
+        self.session.query(CourseModel).filter_by(id=course_id).delete(
+            synchronize_session=False
+        )
+
+
+
+================================================
+File: src/infrastructure/db/repositories/user_repo.py
+================================================
+from typing import Optional, List, cast
+from uuid import UUID
+from datetime import datetime, timezone
+from sqlalchemy.orm import Session
+
+from src.domain.repositories.abstract_user_repository import AbstractUserRepository
+from src.domain.entities.user import User
+from src.infrastructure.db.models import UserModel
+
+
+class SqlAlchemyUserRepo(AbstractUserRepository):
+    def __init__(self, session: Session):
+        self.session = session
+
+    def add(self, user: User) -> None:
+        model = UserModel(
+            id=user.id,
+            sso_id=user.sso_id,
+            name=user.name,
+            email=user.email,
+            role=user.role,
+            created_at=user.created_at,
+            updated_at=user.updated_at,
+        )
+        self.session.add(model)
+
+    def get(self, user_id: UUID) -> Optional[User]:
+        m = self.session.query(UserModel).filter_by(id=user_id).one_or_none()
+        if not m:
+            return None
+        return User(
+            id=cast(UUID, m.id),
+            sso_id=cast(str, m.sso_id),
+            name=cast(str, m.name),
+            email=cast(str, m.email),
+            role=cast(str, m.role),
+            created_at=cast(datetime, m.created_at),
+            updated_at=cast(datetime, m.updated_at),
+        )
+
+    def get_by_sso_id(self, sso_id: str) -> Optional[User]:
+        m = self.session.query(UserModel).filter_by(sso_id=sso_id).one_or_none()
+        if not m:
+            return None
+        return User(
+            id=cast(UUID, m.id),
+            sso_id=cast(str, m.sso_id),
+            name=cast(str, m.name),
+            email=cast(str, m.email),
+            role=cast(str, m.role),
+            created_at=cast(datetime, m.created_at),
+            updated_at=cast(datetime, m.updated_at),
+        )
+
+    def get_by_email(self, email: str) -> Optional[User]:
+        m = self.session.query(UserModel).filter_by(email=email).one_or_none()
+        if not m:
+            return None
+        return User(
+            id=cast(UUID, m.id),
+            sso_id=cast(str, m.sso_id),
+            name=cast(str, m.name),
+            email=cast(str, m.email),
+            role=cast(str, m.role),
+            created_at=cast(datetime, m.created_at),
+            updated_at=cast(datetime, m.updated_at),
+        )
+
+    def list(self) -> List[User]:
+        models = self.session.query(UserModel).all()
+        return [
+            User(
+                id=cast(UUID, m.id),
+                sso_id=cast(str, m.sso_id),
+                name=cast(str, m.name),
+                email=cast(str, m.email),
+                role=cast(str, m.role),
+                created_at=cast(datetime, m.created_at),
+                updated_at=cast(datetime, m.updated_at),
+            )
+            for m in models
+        ]
+
+    def update(self, user: User) -> None:
+        m = self.session.query(UserModel).filter_by(id=user.id).one()
+        for attr in ("name", "email", "role"):
+            setattr(m, attr, getattr(user, attr))
+        m.updated_at = datetime.now(timezone.utc)  # type: ignore
+
+
+
+================================================
+File: src/infrastructure/sso/__init__.py
+================================================
+
+
+
+================================================
+File: src/infrastructure/sso/innopolis_oidc.py
+================================================
+from authlib.integrations.starlette_client import OAuth
+from src.config import settings
+
+oauth = OAuth()
+
+oauth.register(
+    name="innopolis_sso",
+    server_metadata_url=settings.SSO_DISCOVERY_URL,
+    client_id=settings.SSO_CLIENT_ID,
+    client_secret=settings.SSO_CLIENT_SECRET,
+    client_kwargs={"scope": "openid email profile"},
+)
+
+
+
+================================================
+File: src/services/__init__.py
+================================================
+from .course_service import CourseService
+from .choice_service import ChoiceService
+from .user_service import UserService
+
+__all__ = ["CourseService", "UserService", "ChoiceService"]
+
+
+
+================================================
+File: src/services/choice_service.py
+================================================
+from typing import List, Dict
+from uuid import uuid4, UUID
+from datetime import datetime, timezone
+
+from src.domain.entities.choice import Choice
+from src.domain.exceptions import (
+    DuplicateChoiceError,
+    ChoiceNotFoundError,
+    CourseNotFoundError,
+)
+from src.domain.unit_of_work import AbstractUnitOfWork
+
+
+class ChoiceService:
+    def list_user_choices(self, user_id: UUID, uow: AbstractUnitOfWork) -> List[Choice]:
+        """Fetch all choices for a user, ordered by ascending priority."""
+        with uow:
+            return sorted(uow.choices.list_by_user(user_id), key=lambda c: c.priority)
+
+    def replace_user_choices(
+        self, user_id: UUID, course_ids: List[UUID], uow: AbstractUnitOfWork
+    ) -> List[Choice]:
+        """
+        Delete all this user’s existing choices, then insert exactly `course_ids`
+        in the given order.  First item → priority=1, second → 2, etc.
+
+        Raises:
+          - DuplicateChoiceError if the list contains the same course twice.
+          - CourseNotFoundError if any ID isn’t in the courses table.
+        """
+        with uow:
+            if len(course_ids) != len(set(course_ids)):
+                raise DuplicateChoiceError("No duplicates allowed")
+
+            for course_id in course_ids:
+                if uow.courses.get(course_id) is None:
+                    raise CourseNotFoundError(f"Course '{course_id}' not found")
+
+            for existing in uow.choices.list_by_user(user_id):
+                uow.choices.delete(existing.id)
+
+            now = datetime.now(timezone.utc)
+            created: List[Choice] = []
+            for idx, course_id in enumerate(course_ids, start=1):
+                choice = Choice(
+                    id=uuid4(),
+                    user_id=user_id,
+                    course_id=course_id,
+                    priority=idx,
+                    created_at=now,
+                    updated_at=now,
+                )
+                uow.choices.add(choice)
+                created.append(choice)
+
+            return created
+
+    def remove_choice(
+        self, user_id: UUID, priority: int, uow: AbstractUnitOfWork
+    ) -> List[Choice]:
+        """
+        Delete the choice at `priority`.
+        Shifts existing choices with priority > this up by one.
+        """
+        with uow:
+            choices = sorted(
+                uow.choices.list_by_user(user_id), key=lambda c: c.priority
+            )
+
+            to_del = next((c for c in choices if c.priority == priority), None)
+            if to_del is None:
+                raise ChoiceNotFoundError(f"No choice at priority {priority}")
+            uow.choices.delete(to_del.id)
+
+            now = datetime.now(timezone.utc)
+            for choice in choices:
+                if choice.priority > priority:
+                    choice.priority -= 1
+                    choice.updated_at = now
+                    uow.choices.update(choice)
+
+            return sorted(uow.choices.list_by_user(user_id), key=lambda c: c.priority)
+
+
+
+================================================
+File: src/services/course_service.py
+================================================
+from datetime import timezone
+from typing import Any, Dict, List, Optional, Tuple
+from src.domain.entities.course import Course
+from src.domain.exceptions import DuplicateCourseCodeError
+from src.domain.unit_of_work import AbstractUnitOfWork
+
+from uuid import UUID, uuid4
+from datetime import datetime
+
+
+class CourseService:
+    def list_courses(self, uow: AbstractUnitOfWork) -> List[Course]:
+        with uow:
+            return uow.courses.list()
+
+    def create_course(
+        self,
+        code: str,
+        title: str,
+        description: str,
+        max_seats: int,
+        uow: AbstractUnitOfWork,
+    ) -> Course:
+
+        with uow:
+            if uow.courses.get_by_code(code):
+                raise DuplicateCourseCodeError(f"Course code '{code}' already exists")
+            course = Course(
+                id=uuid4(),
+                code=code,
+                title=title,
+                description=description,
+                max_seats=max_seats,
+                created_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(timezone.utc),
+            )
+            uow.courses.add(course)
+            return course
+
+    def import_courses(
+        self, courses_data: List[Dict[str, Any]], uow: AbstractUnitOfWork
+    ) -> Tuple[List[Course], List[Tuple[Dict[str, Any], Course]]]:
+        """
+        Returns a tuple:
+         - List of newly created Course objects
+         - List of (input_dict, existing_course) for duplicates
+        """
+        imported: List[Course] = []
+        skipped: List[Tuple[Dict[str, Any], Course]] = []
+
+        for cd in courses_data:
+            try:
+                new_course = self.create_course(**cd, uow=uow)
+                imported.append(new_course)
+            except DuplicateCourseCodeError:
+                existing = uow.courses.get_by_code(cd["code"])
+
+                # existing should never be None here, but guard just in case
+                if existing:
+                    skipped.append((cd, existing))
+
+        return imported, skipped
+
+    def get_course(self, course_id: UUID, uow: AbstractUnitOfWork) -> Optional[Course]:
+        with uow:
+            return uow.courses.get(course_id)
+
+    def update_course(
+        self,
+        course_id: UUID,
+        code: str,
+        title: str,
+        description: str,
+        max_seats: int,
+        uow: AbstractUnitOfWork,
+    ) -> Optional[Course]:
+        with uow:
+            course = uow.courses.get(course_id)
+            if not course:
+                return None
+
+            existing = uow.courses.get_by_code(code)
+            if existing and existing.id != course_id:
+                raise DuplicateCourseCodeError(f"Course code '{code}' already exists")
+
+            course.code = code
+            course.title = title
+            course.description = description
+            course.max_seats = max_seats
+            course.updated_at = datetime.now(timezone.utc)
+
+            uow.courses.update(course)
+            return course
+
+    def delete_course(self, course_id: UUID, uow: AbstractUnitOfWork) -> bool:
+        with uow:
+            course = uow.courses.get(course_id)
+            if not course:
+                return False
+            uow.courses.delete(course_id)
+            return True
+
+    def delete_all_courses(self, uow: AbstractUnitOfWork) -> int:
+        with uow:
+            courses = uow.courses.list()
+            for c in courses:
+                uow.courses.delete(c.id)
+            return len(courses)
+
+
+
+================================================
+File: src/services/user_service.py
+================================================
+from uuid import UUID, uuid4
+from datetime import datetime, timedelta, timezone
+from typing import List
+import jwt
+
+from src.domain.entities import User
+from src.domain.exceptions import UserNotFoundError
+from src.domain.unit_of_work import AbstractUnitOfWork
+from src.config import settings
+
+
+class UserService:
+    def promote(self, username: str, uow: AbstractUnitOfWork) -> User:
+        with uow:
+            user = uow.users.get_by_sso_id(username)
+            if not user:
+                raise UserNotFoundError(f"User '{username}' not found")
+            user.role = "Admin"
+            user.updated_at = datetime.now(timezone.utc)
+            uow.users.update(user)
+            return user
+
+    def list_users(self, uow: AbstractUnitOfWork) -> List[User]:
+        with uow:
+            return uow.users.list()
+
+    def register_sso(
+        self,
+        *,
+        sso_id: str,
+        name: str,
+        email: str,
+        role: str,
+        uow: AbstractUnitOfWork,
+    ) -> User:
+        with uow:
+            user = uow.users.get_by_sso_id(sso_id)
+            if user:
+                user.name = name
+                user.email = email
+                user.role = role
+                uow.users.update(user)
+                return user
+
+            now = datetime.now(timezone.utc)
+            user = User(
+                id=uuid4(),
+                sso_id=sso_id,
+                name=name,
+                email=email,
+                role=role,
+                created_at=now,
+                updated_at=now,
+            )
+            uow.users.add(user)
+            return user
+
+    def is_admin(self, user_id: UUID, uow: AbstractUnitOfWork) -> bool:
+        with uow:
+            user = uow.users.get(user_id)
+            return bool(user and user.role == "Admin")
+
+    def create_access_token(self, user: User) -> str:
+        payload = {
+            "sub": str(user.id),
+            "email": user.email,
+            "name": user.name,
+            "exp": datetime.now(timezone.utc)
+            + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES),
+        }
+        return jwt.encode(
+            payload, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM
+        )
+
+
+
+================================================
+File: test_data/courses.csv
+================================================
+code,title,description,max_seats
+CS101,Introduction to Computer Science,"Learn the fundamentals of algorithms, data structures, and problem solving",30
+MATH201,Calculus I,"Differential and integral calculus of one variable",25
+ENG150,English Literature,"Survey of classic and modern English works",20
+PHY210,Physics I,"Mechanics, motion, and energy principles",40
+HIST300,Modern History,Examination of 20th-century global events,15
+BIO110,Biology Basics,Overview of cell biology and genetics,35
+CHEM220,Organic Chemistry,"Structure, properties, and reactions of organic compounds",20
+
+
+

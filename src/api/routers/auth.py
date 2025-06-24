@@ -1,18 +1,33 @@
 import logging
 from uuid import UUID
-import jwt
 
-from fastapi import APIRouter, Depends, Request, HTTPException, status, Response
+import jwt
+from fastapi import APIRouter, Depends, Request, HTTPException, Response, status
+from fastapi.responses import RedirectResponse
 from authlib.integrations.starlette_client import OAuthError
 
 from src.api.dependencies import get_uow
 from src.api.models import UserResponse
-
 from src.infrastructure.sso.innopolis_oidc import oauth
 from src.services.user_service import UserService
 from src.config import settings
 
-router = APIRouter()
+router = APIRouter(tags=["auth"])
+
+
+@router.post("/logout", status_code=204)
+def logout(response: Response):
+    """
+    Clear the access_token cookie to log out the user.
+    """
+    response.delete_cookie(
+        key="access_token",
+        path="/",
+        httponly=True,
+        samesite="lax",
+    )
+    response.status_code = 204
+    return response
 
 
 @router.get("/login")
@@ -26,50 +41,35 @@ async def login(request: Request):
 
 @router.get("/callback")
 async def auth_callback(
-    request: Request, user_service=Depends(UserService), uow=Depends(get_uow)
+    request: Request,
+    user_service: UserService = Depends(),
+    uow=Depends(get_uow),
 ):
     """
-    Handle the OIDC callback: exchange code, parse ID token (or hit userinfo),
-    create/update local user, then issue a JWT in a cookie.
+    Handle the OIDC callback.
     """
     try:
         token = await oauth.innopolis_sso.authorize_access_token(request)  # type: ignore
-        logging.debug("SSO token response keys: %s", list(token.keys()))
-
-        userinfo = token.get("userinfo")
-
+        userinfo = token.get("userinfo") or {}
         if not userinfo and token.get("id_token"):
             userinfo = await oauth.innopolis_sso.parse_id_token(request, token)  # type: ignore
-
         if not userinfo:
             userinfo = await oauth.innopolis_sso.userinfo(request, token)  # type: ignore
-
     except OAuthError as err:
         logging.error("SSO login failed: %s", err)
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="SSO login failed",
-        )
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "SSO login failed")
 
-    if not userinfo:
-        logging.error("No userinfo could be extracted from token: %s", token)
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Could not obtain user info from SSO",
-        )
-
-    sso_id = userinfo["sub"]
+    sub = userinfo["sub"]
     email = userinfo.get("email", "")
-    name = userinfo.get("name") or userinfo.get("commonname", "")
-    is_admin = "Innopoints_Admins" in userinfo.get("group", [])
+    name = userinfo.get("name") or userinfo.get("commonname") or ""
+    role = "Admin" if "Innopoints_Admins" in userinfo.get("group", []) else "Student"
 
     user = user_service.register_sso(
-        sso_id=sso_id, name=name, email=email, is_admin=is_admin, uow=uow
+        sso_id=sub, name=name, email=email, role=role, uow=uow
     )
-    access_token = user_service.create_access_token(user)
 
-    resp = Response(status_code=status.HTTP_302_FOUND)
-    resp.headers["Location"] = "/users/me"
+    access_token = user_service.create_access_token(user)
+    resp = RedirectResponse(settings.FRONTEND_URL, status_code=status.HTTP_302_FOUND)
     resp.set_cookie(
         key="access_token",
         value=access_token,
@@ -81,40 +81,51 @@ async def auth_callback(
     return resp
 
 
-def get_current_user(request: Request) -> UserResponse:
+def get_current_user(
+    request: Request,
+    uow=Depends(get_uow),
+) -> UserResponse:
     token = request.cookies.get("access_token")
     if not token:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated"
-        )
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Not authenticated")
 
     try:
         payload = jwt.decode(
-            token, settings.JWT_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM]
+            token,
+            settings.JWT_SECRET_KEY,
+            algorithms=[settings.JWT_ALGORITHM],
         )
     except jwt.PyJWTError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token"
-        )
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid token")
+
+    user_id = UUID(payload["sub"])
+    with uow:
+        user = uow.users.get(user_id)
+    if not user:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "User not found")
 
     return UserResponse(
-        sub=payload["sub"], email=payload["email"], name=payload["name"]
+        sub=str(user.id),
+        email=user.email,
+        name=user.name,
+        role=user.role,
     )
 
 
-def require_admin(
-    user: UserResponse = Depends(get_current_user),
-    uow=Depends(get_uow),
-    user_service: UserService = Depends(UserService),
-) -> UserResponse:
-    try:
-        user_id = UUID(user.sub)
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid user id")
+def require_roles(*allowed: str):
+    """
+    Dependency factory: e.g. dependencies=[require_roles("Admin","Instructor")]
+    """
 
-    if not user_service.is_admin(user_id, uow=uow):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Admin privileges required"
-        )
+    def _checker(user: UserResponse = Depends(get_current_user)):
+        if user.role not in allowed:
+            raise HTTPException(status.HTTP_403_FORBIDDEN, "Forbidden")
+        return user
 
-    return user
+    return Depends(_checker)
+
+
+# convenience aliases
+require_admin = require_roles("Admin")
+require_student = require_roles("Student")
+require_instructor = require_roles("Instructor")

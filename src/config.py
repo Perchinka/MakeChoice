@@ -1,5 +1,4 @@
 import os
-from typing import Any
 
 
 class Settings:
@@ -24,6 +23,7 @@ class Settings:
     )
 
     SESSION_SECRET_KEY: str = os.getenv("SESSION_SECRET_KEY", "some-random-key")
+    FRONTEND_URL: str = os.getenv("FRONTEND_URL", "http://localhost:8501")
 
 
 settings = Settings()

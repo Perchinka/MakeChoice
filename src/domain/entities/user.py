@@ -9,6 +9,6 @@ class User(BaseModel):
     sso_id: str
     name: str
     email: str
-    is_admin: bool
+    role: str
     created_at: datetime
     updated_at: datetime

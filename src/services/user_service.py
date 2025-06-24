@@ -15,7 +15,7 @@ class UserService:
             user = uow.users.get_by_sso_id(username)
             if not user:
                 raise UserNotFoundError(f"User '{username}' not found")
-            user.is_admin = True
+            user.role = "Admin"
             user.updated_at = datetime.now(timezone.utc)
             uow.users.update(user)
             return user
@@ -30,7 +30,7 @@ class UserService:
         sso_id: str,
         name: str,
         email: str,
-        is_admin: bool,
+        role: str,
         uow: AbstractUnitOfWork,
     ) -> User:
         with uow:
@@ -38,7 +38,7 @@ class UserService:
             if user:
                 user.name = name
                 user.email = email
-                user.is_admin = is_admin
+                user.role = role
                 uow.users.update(user)
                 return user
 
@@ -48,7 +48,7 @@ class UserService:
                 sso_id=sso_id,
                 name=name,
                 email=email,
-                is_admin=is_admin,
+                role=role,
                 created_at=now,
                 updated_at=now,
             )
@@ -58,7 +58,7 @@ class UserService:
     def is_admin(self, user_id: UUID, uow: AbstractUnitOfWork) -> bool:
         with uow:
             user = uow.users.get(user_id)
-            return bool(user and user.is_admin)
+            return bool(user and user.role == "Admin")
 
     def create_access_token(self, user: User) -> str:
         payload = {

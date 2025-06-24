@@ -1,12 +1,11 @@
 from fastapi import FastAPI, Request, status
-from fastapi.responses import JSONResponse, HTMLResponse
+from fastapi.responses import JSONResponse
 from src.config import settings
 from src.domain.exceptions import AppError
 from src.logging import setup_logging
 from src.api.routers import auth_router, users_router, courses_router, choices_router
+from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
-from fastapi.templating import Jinja2Templates
-from fastapi.staticfiles import StaticFiles
 
 from src.api.error_handler import code_map
 
@@ -14,7 +13,7 @@ from src.api.error_handler import code_map
 def create_app() -> FastAPI:
     setup_logging()
 
-    app = FastAPI(title=settings.APP_NAME)
+    app = FastAPI(title=settings.APP_NAME, openapi_prefix="/api")
 
     @app.exception_handler(AppError)
     async def app_error_handler(request: Request, exc: AppError):
@@ -25,20 +24,22 @@ def create_app() -> FastAPI:
         SessionMiddleware,
         secret_key=settings.SESSION_SECRET_KEY,
         session_cookie="session",
-        max_age=14 * 24 * 3600,  # session lifetime in seconds
+        max_age=14 * 24 * 3600,
         same_site="lax",
+    )
+
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=[settings.FRONTEND_URL],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
     )
 
     app.include_router(auth_router, prefix="/auth", tags=["auth"])
     app.include_router(users_router, prefix="/users", tags=["users"])
     app.include_router(courses_router, prefix="/courses", tags=["courses"])
     app.include_router(choices_router, prefix="/choices", tags=["choices"])
-
-    templates = Jinja2Templates(directory="templates")
-
-    @app.get("/", response_class=HTMLResponse)
-    async def home(request: Request):
-        return templates.TemplateResponse("index.html", {"request": request})
 
     return app
 

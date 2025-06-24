@@ -9,6 +9,7 @@ class UserResponse(BaseModel):
     sub: str
     email: str
     name: str
+    role: str
 
 
 class CourseCreateRequest(BaseModel):

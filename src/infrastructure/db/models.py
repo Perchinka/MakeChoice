@@ -2,9 +2,9 @@ from uuid import uuid4
 from datetime import datetime, timezone
 from sqlalchemy import (
     Column,
+    String,
     Text,
     Integer,
-    Boolean,
     DateTime,
     SmallInteger,
     CheckConstraint,
@@ -25,15 +25,26 @@ class UserModel(Base):
     sso_id = Column(Text, nullable=False, unique=True, index=True)
     name = Column(Text, nullable=False)
     email = Column(Text, nullable=False, unique=True, index=True)
-    is_admin = Column(Boolean, nullable=False, default=False)
+
+    # Single role field
+    role = Column(Text, nullable=False, default="Student")
+    __table_args__ = (
+        CheckConstraint(
+            "role IN ('Admin', 'Student', 'Instructor')",
+            name="chk_users_role",
+        ),
+    )
+
     created_at = Column(
-        DateTime(timezone=True), nullable=False, default=datetime.now(timezone.utc)
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
     )
     updated_at = Column(
         DateTime(timezone=True),
         nullable=False,
-        default=datetime.now(timezone.utc),
-        onupdate=datetime.now(timezone.utc),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
     )
 
     choices = relationship("ChoiceModel", back_populates="user")
