@@ -21,7 +21,7 @@ async def list_choices(
     user_id = UUID(user.sub)
     choices = svc.list_user_choices(user_id, uow)
     return [
-        ChoiceItem(priority=choice.priority, course_id=choice.course_id)
+        ChoiceItem(priority=choice.priority, elective_id=choice.elective_id)
         for choice in choices
     ]
 
@@ -30,12 +30,12 @@ async def list_choices(
     "/",
     response_model=List[ChoiceItem],
     status_code=status.HTTP_200_OK,
-    summary="Replace all choices by ordered list of course IDs",
+    summary="Replace all choices by ordered list of elective IDs",
 )
 async def replace_choices(
-    course_ids: List[UUID] = Body(
+    elective_ids: List[UUID] = Body(
         ...,
-        description="Ordered list of course UUIDs (first = priority 1, next = 2, …)",
+        description="Ordered list of elective UUIDs (first = priority 1, next = 2, …)",
         example=[
             "ed51f07e-afb5-4c9e-ba6e-150869922073",
             "fc2dcd26-3b69-4fdd-ad30-c0f1a7c4b595",
@@ -46,10 +46,12 @@ async def replace_choices(
     uow=Depends(get_uow),
 ):
     user_id = UUID(user.sub)
-    created = svc.replace_user_choices(user_id=user_id, course_ids=course_ids, uow=uow)
+    created = svc.replace_user_choices(
+        user_id=user_id, elective_ids=elective_ids, uow=uow
+    )
 
     return [
-        ChoiceItem(priority=choice.priority, course_id=choice.course_id)
+        ChoiceItem(priority=choice.priority, elective_id=choice.elective_id)
         for choice in created
     ]
 
@@ -72,4 +74,4 @@ async def delete_choice(
     user_id = UUID(user.sub)
     updated = svc.remove_choice(user_id=user_id, priority=priority, uow=uow)
 
-    return [ChoiceItem(priority=c.priority, course_id=c.course_id) for c in updated]
+    return [ChoiceItem(priority=c.priority, elective_id=c.elective_id) for c in updated]

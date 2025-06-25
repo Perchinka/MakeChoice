@@ -12,14 +12,14 @@ class UserResponse(BaseModel):
     role: str
 
 
-class CourseCreateRequest(BaseModel):
+class ElectiveCreateRequest(BaseModel):
     code: str
     title: str
     description: str
     max_seats: int
 
 
-class CourseResponse(BaseModel):
+class ElectiveResponse(BaseModel):
     id: UUID
     code: str
     title: str
@@ -29,24 +29,24 @@ class CourseResponse(BaseModel):
     updated_at: datetime
 
 
-class SkippedCourse(BaseModel):
-    input: CourseCreateRequest
-    existing: CourseResponse
+class SkippedElective(BaseModel):
+    input: ElectiveCreateRequest
+    existing: ElectiveResponse
 
 
-class ImportCoursesReport(BaseModel):
-    imported: List[CourseResponse]
-    skipped: List[SkippedCourse]
+class ImportElectiveReport(BaseModel):
+    imported: List[ElectiveResponse]
+    skipped: List[SkippedElective]
 
 
 class ChoiceItem(BaseModel):
     priority: int = Field(..., description="Priority of the choice")
-    course_id: UUID = Field(..., description="UUID of the selected course")
+    elective_id: UUID = Field(..., description="UUID of the selected elective")
 
     class Config:
         schema_extra = {
             "example": {
                 "priority": 1,
-                "course_id": "550e8400-e29b-41d4-a716-446655440000",
+                "elective_id": "550e8400-e29b-41d4-a716-446655440000",
             }
         }

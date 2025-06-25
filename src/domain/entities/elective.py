@@ -5,9 +5,9 @@ from typing import Optional
 from pydantic import BaseModel
 
 
-class Course(BaseModel):
+class Elective(BaseModel):
     """
-    An elective course in the catalog.
+    An elective elective in the catalog.
     """
 
     id: UUID

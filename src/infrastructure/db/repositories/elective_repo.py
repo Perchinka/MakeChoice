@@ -3,32 +3,32 @@ from uuid import UUID
 from datetime import datetime
 from sqlalchemy.orm import Session
 
-from src.domain.repositories import AbstractCourseRepository
-from src.domain.entities.course import Course
-from src.infrastructure.db.models import CourseModel
+from src.domain.repositories import AbstractElectiveRepository
+from src.domain.entities import Elective
+from src.infrastructure.db.models import ElectiveModel
 
 
-class SqlAlchemyCourseRepo(AbstractCourseRepository):
+class SqlAlchemyElectiveRepo(AbstractElectiveRepository):
     def __init__(self, session: Session):
         self.session = session
 
-    def add(self, course: Course) -> None:
-        model = CourseModel(
-            id=course.id,
-            code=course.code,
-            title=course.title,
-            description=course.description,
-            max_seats=course.max_seats,
-            created_at=course.created_at,
-            updated_at=course.updated_at,
+    def add(self, elective: Elective) -> None:
+        model = ElectiveModel(
+            id=elective.id,
+            code=elective.code,
+            title=elective.title,
+            description=elective.description,
+            max_seats=elective.max_seats,
+            created_at=elective.created_at,
+            updated_at=elective.updated_at,
         )
         self.session.add(model)
 
-    def get(self, course_id: UUID) -> Optional[Course]:
-        m = self.session.query(CourseModel).filter_by(id=course_id).one_or_none()
+    def get(self, elective_id: UUID) -> Optional[Elective]:
+        m = self.session.query(ElectiveModel).filter_by(id=elective_id).one_or_none()
         if m is None:
             return None
-        return Course(
+        return Elective(
             id=cast(UUID, m.id),
             code=cast(str, m.code),
             title=cast(str, m.title),
@@ -38,11 +38,11 @@ class SqlAlchemyCourseRepo(AbstractCourseRepository):
             updated_at=cast(datetime, m.updated_at),
         )
 
-    def get_by_code(self, code: str) -> Optional[Course]:
-        m = self.session.query(CourseModel).filter_by(code=code).one_or_none()
+    def get_by_code(self, code: str) -> Optional[Elective]:
+        m = self.session.query(ElectiveModel).filter_by(code=code).one_or_none()
         if m is None:
             return None
-        return Course(
+        return Elective(
             id=cast(UUID, m.id),
             code=cast(str, m.code),
             title=cast(str, m.title),
@@ -52,10 +52,10 @@ class SqlAlchemyCourseRepo(AbstractCourseRepository):
             updated_at=cast(datetime, m.updated_at),
         )
 
-    def list(self) -> List[Course]:
-        models = self.session.query(CourseModel).all()
+    def list(self) -> List[Elective]:
+        models = self.session.query(ElectiveModel).all()
         return [
-            Course(
+            Elective(
                 id=cast(UUID, m.id),
                 code=cast(str, m.code),
                 title=cast(str, m.title),
@@ -67,12 +67,12 @@ class SqlAlchemyCourseRepo(AbstractCourseRepository):
             for m in models
         ]
 
-    def update(self, course: Course) -> None:
-        m = self.session.query(CourseModel).filter_by(id=course.id).one()
+    def update(self, elective: Elective) -> None:
+        m = self.session.query(ElectiveModel).filter_by(id=elective.id).one()
         for attr in ("code", "title", "description", "max_seats", "updated_at"):
-            setattr(m, attr, getattr(course, attr))
+            setattr(m, attr, getattr(elective, attr))
 
-    def delete(self, course_id: UUID) -> None:
-        self.session.query(CourseModel).filter_by(id=course_id).delete(
+    def delete(self, elective_id: UUID) -> None:
+        self.session.query(ElectiveModel).filter_by(id=elective_id).delete(
             synchronize_session=False
         )

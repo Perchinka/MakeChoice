@@ -16,7 +16,7 @@ class SqlAlchemyChoiceRepo(AbstractChoiceRepository):
         model = ChoiceModel(
             id=choice.id,
             user_id=choice.user_id,
-            course_id=choice.course_id,
+            elective_id=choice.elective_id,
             priority=choice.priority,
             created_at=choice.created_at,
             updated_at=choice.updated_at,
@@ -35,7 +35,7 @@ class SqlAlchemyChoiceRepo(AbstractChoiceRepository):
         return Choice(
             id=cast(UUID, m.id),
             user_id=cast(UUID, m.user_id),
-            course_id=cast(UUID, m.course_id),
+            elective_id=cast(UUID, m.elective_id),
             priority=cast(int, m.priority),
             created_at=cast(datetime, m.created_at),
             updated_at=cast(datetime, m.updated_at),
@@ -47,7 +47,7 @@ class SqlAlchemyChoiceRepo(AbstractChoiceRepository):
             Choice(
                 id=cast(UUID, m.id),
                 user_id=cast(UUID, m.user_id),
-                course_id=cast(UUID, m.course_id),
+                elective_id=cast(UUID, m.elective_id),
                 priority=cast(int, m.priority),
                 created_at=cast(datetime, m.created_at),
                 updated_at=cast(datetime, m.updated_at),
@@ -66,7 +66,7 @@ class SqlAlchemyChoiceRepo(AbstractChoiceRepository):
             Choice(
                 id=cast(UUID, m.id),
                 user_id=cast(UUID, m.user_id),
-                course_id=cast(UUID, m.course_id),
+                elective_id=cast(UUID, m.elective_id),
                 priority=cast(int, m.priority),
                 created_at=cast(datetime, m.created_at),
                 updated_at=cast(datetime, m.updated_at),
@@ -74,13 +74,15 @@ class SqlAlchemyChoiceRepo(AbstractChoiceRepository):
             for m in models
         ]
 
-    def list_by_course(self, course_id: UUID) -> List[Choice]:
-        models = self.session.query(ChoiceModel).filter_by(course_id=course_id).all()
+    def list_by_elective(self, elective_id: UUID) -> List[Choice]:
+        models = (
+            self.session.query(ChoiceModel).filter_by(elective_id=elective_id).all()
+        )
         return [
             Choice(
                 id=cast(UUID, m.id),
                 user_id=cast(UUID, m.user_id),
-                course_id=cast(UUID, m.course_id),
+                elective_id=cast(UUID, m.elective_id),
                 priority=cast(int, m.priority),
                 created_at=cast(datetime, m.created_at),
                 updated_at=cast(datetime, m.updated_at),

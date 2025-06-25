@@ -1,4 +1,4 @@
-"""seed initial courses data
+"""seed initial electives data
 
 Revision ID: 5d90ac5b7342
 Revises: 2475dc0cabff
@@ -24,8 +24,8 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
     now = datetime.now(timezone.utc)
 
-    course_table = table(
-        "courses",
+    elective_table = table(
+        "electives",
         column("id"),
         column("code"),
         column("title"),
@@ -36,7 +36,7 @@ def upgrade() -> None:
     )
 
     op.bulk_insert(
-        course_table,
+        elective_table,
         [
             {
                 "id": uuid.uuid4(),
@@ -80,6 +80,6 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     op.execute(
-        sa.text("DELETE FROM courses WHERE code IN (:c1, :c2, :c3, :c4)"),
+        sa.text("DELETE FROM electives WHERE code IN (:c1, :c2, :c3, :c4)"),
         {"c1": "CS101", "c2": "MATH201", "c3": "STAT202", "c4": "CS303"},
     )

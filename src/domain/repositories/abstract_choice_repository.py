@@ -33,8 +33,8 @@ class AbstractChoiceRepository(ABC):
         ...
 
     @abstractmethod
-    def list_by_course(self, course_id: UUID) -> List[Choice]:
-        """Return all Choices for a given course."""
+    def list_by_elective(self, elective_id: UUID) -> List[Choice]:
+        """Return all Choices for a given elective."""
         ...
 
     @abstractmethod

@@ -3,14 +3,14 @@ from typing import Optional, Type, Any
 
 from src.domain.repositories import (
     AbstractUserRepository,
-    AbstractCourseRepository,
+    AbstractElectiveRepository,
     AbstractChoiceRepository,
 )
 
 
 class AbstractUnitOfWork(ABC):
     users: AbstractUserRepository
-    courses: AbstractCourseRepository
+    electives: AbstractElectiveRepository
     choices: AbstractChoiceRepository
 
     def __enter__(self) -> "AbstractUnitOfWork":

@@ -3,7 +3,7 @@ from fastapi.responses import JSONResponse
 from src.config import settings
 from src.domain.exceptions import AppError
 from src.logging import setup_logging
-from src.api.routers import auth_router, users_router, courses_router, choices_router
+from src.api.routers import auth_router, users_router, electives_router, choices_router
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
@@ -38,8 +38,8 @@ def create_app() -> FastAPI:
 
     app.include_router(auth_router, prefix="/auth", tags=["auth"])
     app.include_router(users_router, prefix="/users", tags=["users"])
-    app.include_router(courses_router, prefix="/courses", tags=["courses"])
-    app.include_router(choices_router, prefix="/choices", tags=["choices"])
+    app.include_router(electives_router, tags=["electives"])
+    app.include_router(choices_router, tags=["choices"])
 
     return app
 

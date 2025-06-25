@@ -21,7 +21,7 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
     """Upgrade schema."""
     op.create_table(
-        "courses",
+        "electives",
         sa.Column("id", sa.UUID(), nullable=False),
         sa.Column("code", sa.Text(), nullable=False),
         sa.Column("title", sa.Text(), nullable=False),
@@ -31,7 +31,7 @@ def upgrade() -> None:
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
         sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index(op.f("ix_courses_code"), "courses", ["code"], unique=True)
+    op.create_index(op.f("ix_electives_code"), "electives", ["code"], unique=True)
     op.create_table(
         "users",
         sa.Column("id", sa.UUID(), nullable=False),
@@ -49,15 +49,15 @@ def upgrade() -> None:
         "choices",
         sa.Column("id", sa.UUID(), nullable=False),
         sa.Column("user_id", sa.UUID(), nullable=False),
-        sa.Column("course_id", sa.UUID(), nullable=False),
+        sa.Column("elective_id", sa.UUID(), nullable=False),
         sa.Column("priority", sa.SmallInteger(), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
         sa.CheckConstraint("priority BETWEEN 1 AND 5", name="chk_priority_range"),
-        sa.ForeignKeyConstraint(["course_id"], ["courses.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["elective_id"], ["electives.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("user_id", "course_id", name="uq_user_course"),
+        sa.UniqueConstraint("user_id", "elective_id", name="uq_user_elective"),
         sa.UniqueConstraint("user_id", "priority", name="uq_user_priority"),
     )
 
@@ -66,4 +66,4 @@ def downgrade() -> None:
     """Downgrade schema."""
     op.drop_table("choices")
     op.drop_table("users")
-    op.drop_table("courses")
+    op.drop_table("electives")

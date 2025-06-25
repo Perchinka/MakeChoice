@@ -4,7 +4,7 @@ from src.infrastructure.db.session import create_session
 
 from src.infrastructure.db.repositories import (
     SqlAlchemyUserRepo,
-    SqlAlchemyCourseRepo,
+    SqlAlchemyElectiveRepo,
     SqlAlchemyChoiceRepo,
 )
 
@@ -18,7 +18,7 @@ class UnitOfWork(AbstractUnitOfWork):
     def __enter__(self) -> "UnitOfWork":
         self.session = create_session()
         self.users = SqlAlchemyUserRepo(self.session)
-        self.courses = SqlAlchemyCourseRepo(self.session)
+        self.electives = SqlAlchemyElectiveRepo(self.session)
         self.choices = SqlAlchemyChoiceRepo(self.session)
         return self
 

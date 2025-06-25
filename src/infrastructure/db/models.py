@@ -50,8 +50,8 @@ class UserModel(Base):
     choices = relationship("ChoiceModel", back_populates="user")
 
 
-class CourseModel(Base):
-    __tablename__ = "courses"
+class ElectiveModel(Base):
+    __tablename__ = "electives"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
     code = Column(Text, nullable=False, unique=True, index=True)
@@ -69,13 +69,13 @@ class CourseModel(Base):
         onupdate=datetime.now(timezone.utc),
     )
 
-    choices = relationship("ChoiceModel", back_populates="course")
+    choices = relationship("ChoiceModel", back_populates="elective")
 
 
 class ChoiceModel(Base):
     __tablename__ = "choices"
     __table_args__ = (
-        UniqueConstraint("user_id", "course_id", name="uq_user_course"),
+        UniqueConstraint("user_id", "elective_id", name="uq_user_elective"),
         UniqueConstraint("user_id", "priority", name="uq_user_priority"),
         CheckConstraint("priority BETWEEN 1 AND 5", name="chk_priority_range"),
     )
@@ -84,8 +84,10 @@ class ChoiceModel(Base):
     user_id = Column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
-    course_id = Column(
-        UUID(as_uuid=True), ForeignKey("courses.id", ondelete="CASCADE"), nullable=False
+    elective_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("electives.id", ondelete="CASCADE"),
+        nullable=False,
     )
     priority = Column(SmallInteger, nullable=False)
     created_at = Column(
@@ -99,4 +101,4 @@ class ChoiceModel(Base):
     )
 
     user = relationship("UserModel", back_populates="choices")
-    course = relationship("CourseModel", back_populates="choices")
+    elective = relationship("ElectiveModel", back_populates="choices")

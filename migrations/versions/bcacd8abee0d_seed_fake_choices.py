@@ -33,9 +33,9 @@ def upgrade() -> None:
         for sso in ("student-001", "student-002", "student-003")
     }
 
-    course_ids = {
+    elective_ids = {
         code: conn.execute(
-            sa.text("SELECT id FROM courses WHERE code = :code"),
+            sa.text("SELECT id FROM electives WHERE code = :code"),
             {"code": code},
         ).scalar_one()
         for code in ("CS101", "MATH201", "STAT202", "CS303")
@@ -45,7 +45,7 @@ def upgrade() -> None:
         "choices",
         column("id"),
         column("user_id"),
-        column("course_id"),
+        column("elective_id"),
         column("priority"),
         column("created_at"),
         column("updated_at"),
@@ -55,7 +55,7 @@ def upgrade() -> None:
         {
             "id": uuid.uuid4(),
             "user_id": user_ids["student-001"],
-            "course_id": course_ids["CS101"],
+            "elective_id": elective_ids["CS101"],
             "priority": 1,
             "created_at": now,
             "updated_at": now,
@@ -63,7 +63,7 @@ def upgrade() -> None:
         {
             "id": uuid.uuid4(),
             "user_id": user_ids["student-001"],
-            "course_id": course_ids["MATH201"],
+            "elective_id": elective_ids["MATH201"],
             "priority": 2,
             "created_at": now,
             "updated_at": now,
@@ -71,7 +71,7 @@ def upgrade() -> None:
         {
             "id": uuid.uuid4(),
             "user_id": user_ids["student-002"],
-            "course_id": course_ids["CS101"],
+            "elective_id": elective_ids["CS101"],
             "priority": 1,
             "created_at": now,
             "updated_at": now,
@@ -79,7 +79,7 @@ def upgrade() -> None:
         {
             "id": uuid.uuid4(),
             "user_id": user_ids["student-002"],
-            "course_id": course_ids["STAT202"],
+            "elective_id": elective_ids["STAT202"],
             "priority": 2,
             "created_at": now,
             "updated_at": now,
@@ -87,7 +87,7 @@ def upgrade() -> None:
         {
             "id": uuid.uuid4(),
             "user_id": user_ids["student-003"],
-            "course_id": course_ids["CS303"],
+            "elective_id": elective_ids["CS303"],
             "priority": 1,
             "created_at": now,
             "updated_at": now,

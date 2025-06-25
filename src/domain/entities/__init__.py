@@ -1,5 +1,5 @@
 from .user import User
-from .course import Course
+from .elective import Elective
 from .choice import Choice
 
-__all__ = ["User", "Course", "Choice"]
+__all__ = ["User", "Elective", "Choice"]
