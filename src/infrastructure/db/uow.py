@@ -6,6 +6,7 @@ from src.infrastructure.db.repositories import (
     SqlAlchemyUserRepo,
     SqlAlchemyElectiveRepo,
     SqlAlchemyChoiceRepo,
+    SqlAlchemyCourseRepo,
 )
 
 
@@ -20,6 +21,7 @@ class UnitOfWork(AbstractUnitOfWork):
         self.users = SqlAlchemyUserRepo(self.session)
         self.electives = SqlAlchemyElectiveRepo(self.session)
         self.choices = SqlAlchemyChoiceRepo(self.session)
+        self.courses = SqlAlchemyCourseRepo(self.session)
         return self
 
     def _commit(self) -> None:

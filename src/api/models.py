@@ -15,16 +15,20 @@ class UserResponse(BaseModel):
 class ElectiveCreateRequest(BaseModel):
     code: str
     title: str
-    description: str
-    max_seats: int
+    description: str | None
+    instructor: str = Field(..., min_length=1)
+    category: str = Field(..., pattern="^(Tech|Hum)$")
+    course_ids: list[UUID] = Field(..., min_length=1)
 
 
 class ElectiveResponse(BaseModel):
     id: UUID
     code: str
     title: str
-    description: Optional[str]
-    max_seats: int
+    description: Optional[str] | None
+    instructor: str
+    category: str
+    course_ids: List[UUID]
     created_at: datetime
     updated_at: datetime
 

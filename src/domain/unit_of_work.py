@@ -5,6 +5,7 @@ from src.domain.repositories import (
     AbstractUserRepository,
     AbstractElectiveRepository,
     AbstractChoiceRepository,
+    AbstractCourseRepository,
 )
 
 
@@ -12,6 +13,7 @@ class AbstractUnitOfWork(ABC):
     users: AbstractUserRepository
     electives: AbstractElectiveRepository
     choices: AbstractChoiceRepository
+    courses: AbstractCourseRepository
 
     def __enter__(self) -> "AbstractUnitOfWork":
         """

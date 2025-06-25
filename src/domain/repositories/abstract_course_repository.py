@@ -1,0 +1,19 @@
+from abc import ABC, abstractmethod
+from typing import List, Optional
+from uuid import UUID
+from src.domain.entities.course import Course
+
+
+class AbstractCourseRepository(ABC):
+    @abstractmethod
+    def add(self, course: Course) -> None: ...
+    @abstractmethod
+    def get(self, course_id: UUID) -> Optional[Course]: ...
+    @abstractmethod
+    def get_by_name(self, name: str) -> Optional[Course]: ...
+    @abstractmethod
+    def list(self) -> List[Course]: ...
+    @abstractmethod
+    def update(self, course: Course) -> None: ...
+    @abstractmethod
+    def delete(self, course_id: UUID) -> None: ...

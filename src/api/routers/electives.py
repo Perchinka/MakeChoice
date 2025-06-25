@@ -47,6 +47,15 @@ async def get_elective(
     return elective
 
 
+@router.post("/", response_model=ElectiveResponse, dependencies=[require_admin])
+async def create_elective(
+    payload: ElectiveCreateRequest,
+    svc: ElectiveService = Depends(),
+    uow: AbstractUnitOfWork = Depends(get_uow),
+):
+    return svc.create_elective(**payload.model_dump(), uow=uow)
+
+
 @router.put(
     "/{elective_id}",
     response_model=ElectiveResponse,

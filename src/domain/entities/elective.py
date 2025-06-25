@@ -1,8 +1,8 @@
 from datetime import datetime
 from uuid import UUID
-from typing import Optional
+from typing import List, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class Elective(BaseModel):
@@ -14,6 +14,8 @@ class Elective(BaseModel):
     code: str
     title: str
     description: Optional[str]
-    max_seats: int
+    instructor: str
+    category: str = Field(..., pattern="^(Tech|Hum)$")
+    course_ids: List[UUID] = []
     created_at: datetime
     updated_at: datetime

@@ -2,7 +2,6 @@ from uuid import uuid4
 from datetime import datetime, timezone
 from sqlalchemy import (
     Column,
-    String,
     Text,
     Integer,
     DateTime,
@@ -10,6 +9,7 @@ from sqlalchemy import (
     CheckConstraint,
     UniqueConstraint,
     ForeignKey,
+    Table,
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.ext.declarative import declarative_base
@@ -57,7 +57,6 @@ class ElectiveModel(Base):
     code = Column(Text, nullable=False, unique=True, index=True)
     title = Column(Text, nullable=False)
     description = Column(Text)
-    max_seats = Column(Integer, nullable=False, default=0)
 
     created_at = Column(
         DateTime(timezone=True), nullable=False, default=datetime.now(timezone.utc)
@@ -69,7 +68,19 @@ class ElectiveModel(Base):
         onupdate=datetime.now(timezone.utc),
     )
 
+    instructor = Column(Text, nullable=False)
+    category = Column(Text, nullable=False)  # 'Tech' | 'Hum'
+    __table_args__ = (
+        CheckConstraint("category IN ('Tech','Hum')", name="chk_electives_category"),
+    )
+    courses = relationship(
+        "CourseModel", secondary="elective_courses", back_populates="electives"
+    )
     choices = relationship("ChoiceModel", back_populates="elective")
+
+    @property
+    def course_ids(self):
+        return [course.id for course in self.courses]
 
 
 class ChoiceModel(Base):
@@ -102,3 +113,45 @@ class ChoiceModel(Base):
 
     user = relationship("UserModel", back_populates="choices")
     elective = relationship("ElectiveModel", back_populates="choices")
+
+
+class CourseModel(Base):
+    __tablename__ = "courses"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    name = Column(Text, nullable=False, unique=True)
+    tech_quota = Column(SmallInteger, nullable=False)
+    hum_quota = Column(SmallInteger, nullable=False)
+    created_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+    )
+    updated_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+    )
+
+    electives = relationship(
+        "ElectiveModel", secondary="elective_courses", back_populates="courses"
+    )
+
+
+elective_courses = Table(
+    "elective_courses",
+    Base.metadata,
+    Column(
+        "elective_id",
+        UUID(as_uuid=True),
+        ForeignKey("electives.id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+    Column(
+        "course_id",
+        UUID(as_uuid=True),
+        ForeignKey("courses.id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+)
